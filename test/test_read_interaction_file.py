@@ -269,6 +269,38 @@ def test_two_body():
         msg += f" Expected: {jj_expected[i]}, got: {interaction.two_body.jj[i]}."
         assert success, msg
 
+def test_operator_j_one_body_reduced_matrix_element():
+    """
+    num1:            6 dep_mass1:    1.0000000000000000      method1:           0
+    AIDS!!!
+    k1:            1 k2:            1 v:    1.9798000000000000     
+    j_orbitals(k1):            3
+    factor:    2.0000000000000000     
+    matrix_element(k1, k2):    3.9596000000000000     
+    k1:            2 k2:            2 v:   -3.9436000000000000     
+    j_orbitals(k1):            5
+    factor:    2.4494897427831779     
+    matrix_element(k1, k2):   -9.6598077496397394     
+    k1:            3 k2:            3 v:   -3.0611999999999999     
+    j_orbitals(k1):            1
+    factor:    1.4142135623730951     
+    matrix_element(k1, k2):   -4.3291905571365188     
+    k1:            4 k2:            4 v:    1.9798000000000000     
+    j_orbitals(k1):            3
+    factor:    2.0000000000000000     
+    matrix_element(k1, k2):    3.9596000000000000     
+    k1:            5 k2:            5 v:   -3.9436000000000000     
+    j_orbitals(k1):            5
+    factor:    2.4494897427831779     
+    matrix_element(k1, k2):   -9.6598077496397394     
+    k1:            6 k2:            6 v:   -3.0611999999999999     
+    j_orbitals(k1):            1
+    factor:    1.4142135623730951     
+    matrix_element(k1, k2):   -4.3291905571365188     
+    TBME mass dependence (mass/  18)^ -0.30000000
+    """
+    pass
+
 if __name__ == "__main__":
     test_model_space()
     test_one_body()
