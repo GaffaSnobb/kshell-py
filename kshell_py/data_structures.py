@@ -110,6 +110,10 @@ class Interaction(NamedTuple):
     n_core_neutrons: int
     n_core_nucleons: int
 
+class OperatorJ(NamedTuple):
+    one_body: OneBody
+    two_body: TwoBody
+
 class CouplingIndices(NamedTuple):
     """
     Description copy-paste from type index_jcouple in
