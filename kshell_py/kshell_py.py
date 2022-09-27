@@ -1,15 +1,15 @@
 import math, sys, time, ast
 import numpy as np
-from data_structures import ModelSpace, Interaction, OneBody, TwoBody
+from data_structures import ModelSpace, Interaction, OneBody, TwoBody, OperatorJ
 from parameters import flags
-flags.debug = True
 
 def read_interaction_file(
     path: str
-):  
+) -> Interaction:
     """
-    Translated to Python from operator_jscheme.f90 (subroutine
-    read_intfile).
+    Read an interaction file (.snt) and store all relevant parameters
+    as an Interaction named tuple. Part of Python translation of
+    operator_jscheme.f90 (subroutine read_intfile).
 
     Changes
     -------
@@ -26,7 +26,6 @@ def read_interaction_file(
     path : str
         Path to interaction file (.snt file).
     """
-    # n_core_nucleons: np.ndarray[int, int] = np.zeros(2, dtype=int)  # Protons, neutrons.
     read_interaction_time = time.perf_counter()
 
     with open(path, "r") as infile:
@@ -59,8 +58,6 @@ def read_interaction_file(
 
             n_proton_orbitals, n_neutron_orbitals = line_split[:2]
             n_orbitals = n_proton_orbitals + n_neutron_orbitals
-
-            # n_core_nucleons[:] = line_split[2:]
             n_core_protons, n_core_neutrons = line_split[2:]
             
             model_space = ModelSpace(
@@ -125,12 +122,6 @@ def read_interaction_file(
             n_onebody_elements, method_onebody = [ast.literal_eval(elem) for elem in line.split()]
             break
 
-        # if method_onebody == 0:
-        #     dep_mass1 = 1
-        # else:
-        #     msg = f"dep_mass1 only implemented for method_onebody 0. Got {method_onebody}."
-        #     raise NotImplementedError(msg)
-
         one_body = OneBody(
             orbital_0 = np.zeros(n_onebody_elements, dtype=int),
             orbital_1 = np.zeros(n_onebody_elements, dtype=int),
@@ -160,8 +151,11 @@ def read_interaction_file(
             one_body.orbital_0[i] -= 1  # Indices start at 1 in the snt files.
             one_body.orbital_1[i] -= 1
 
-            # factor = math.sqrt(model_space.j[i] + 1)                 # NOTE: Figure out the origin of this factor.
-            # one_body[orbital_0, orbital_1] = reduced_matrix_element*dep_mass1*factor    # NOTE: Figure out dep_mass1.
+            if one_body.orbital_0[i] != one_body.orbital_1[i]:
+                msg = "One-body indices are not identical!"
+                msg += f" Got {one_body.orbital_0[i] = }, {one_body.orbital_1[i] = }"
+                msg += f" on line {i}. (Don't know how to treat this yet!)"
+                raise NotImplementedError(msg)
 
         for line in infile:
             """
@@ -250,71 +244,158 @@ def read_interaction_file(
             n_core_nucleons = n_core_protons + n_core_neutrons,
         )
 
-        print(interaction.model_space.isospin)
+        read_interaction_time = time.perf_counter() - read_interaction_time
+        if flags.debug:
+            print(f"{read_interaction_time = :.4f} s")
 
-            # isign_01 = 1    # NOTE: Dont know what these are yet.
-            # isign_23 = 1
+        return interaction
 
-            # if orbital_0 > orbital_1:
-            #     """
-            #     NOTE: Don't know why this has to happen (copied from
-            #     operator_jscheme.f90). gs8.snt, jun45.snt and usda.snt
-            #     do not fulfill this condition.
-            #     """
-            #     print("orbital_0 > orbital_1")
-            #     orbital_0, orbital_1 = orbital_1, orbital_0
-            #     isign_01 = (-1)**((model_space.j(orbital_0) + model_space.j(orbital_1))/2 - jj + 1)
+def operator_j_scheme(
+    path: str,
+    nucleus_mass: int
+):
+    """
+    In this function, the "raw" reduced matrix elements from the
+    interaction file are multiplied by a few different factors and
+    stored in an OperatorJ object. NOTE: At the moment I do not know
+    what the purpose of changing the raw matrix elements is.
 
-            # if orbital_2 > orbital_3:
-            #     """
-            #     NOTE: Don't know why this has to happen (copied from
-            #     operator_jscheme.f90). gs8.snt, jun45.snt and usda.snt
-            #     do not fulfill this condition.
-            #     """
-            #     print("orbital_2 > orbital_3")
-            #     orbital_2, orbital_3 = orbital_3, orbital_2
-            #     isign_23 = (-1)**((model_space.j(orbital_2) + model_space.j(orbital_3))/2 - jj + 1)
+    Parameters
+    ----------
+    path : str
+        Path to interaction file (.snt file).
 
-            # reduced_matrix_element *= isign_01*isign_23
+    nucleus_mass : int
+        Mass number of the nucleus. E.g. 20 for 20Ne.
+    """
+    interaction = read_interaction_file(path=path)
+    
+    operator_j_scheme_time = time.perf_counter()
+
+    operator_j = OperatorJ(
+        one_body = OneBody(
+            orbital_0 = np.copy(interaction.one_body.orbital_0),
+            orbital_1 = np.copy(interaction.one_body.orbital_1),
+            reduced_matrix_element = np.zeros_like(interaction.one_body.reduced_matrix_element),
+            method = interaction.one_body.method,
+            n_elements = interaction.one_body.n_elements,
+        ),
+        two_body = TwoBody(
+            orbital_0 = np.copy(interaction.two_body.orbital_0),
+            orbital_1 = np.copy(interaction.two_body.orbital_1),
+            orbital_2 = np.copy(interaction.two_body.orbital_2),
+            orbital_3 = np.copy(interaction.two_body.orbital_3),
+            parity = np.copy(interaction.two_body.parity),
+            jj = np.copy(interaction.two_body.jj),
+            reduced_matrix_element = np.zeros_like(interaction.two_body.reduced_matrix_element),
+            method = interaction.two_body.method,
+            im0 = interaction.two_body.im0,
+            pwr = interaction.two_body.pwr,
+            n_elements = interaction.two_body.n_elements,
+        )
+    )
+    # ONE-BODY
+    if interaction.one_body.method == 0:
+        one_body_mass_dependence = 1    # NOTE: Whats this?
+    else:
+        msg = f"one_body_mass_dependence only implemented for one-body method 0. Got {interaction.one_body.method}."
+        raise NotImplementedError(msg)
+
+    for i in range(interaction.one_body.n_elements):
+        """
+        One-body loop.
+
+        NOTE: operator_jscheme.f90 stores the reduced matrix elements as
+        2D matrices and stores an entry for [orbital_0, orbital_1] and
+        [orbital_1, orbital_0]. Swapping the indices changes nothing
+        since they are equal (at least for usda.snt, jun45.snt,
+        and gs8.snt) so I don't do that here. read_interaction_file also
+        raises an error if they are not equal, so they will always be
+        equal here.
+        """
+        factor = math.sqrt(interaction.model_space.j[i] + 1) # NOTE: Figure out the origin of this factor.
+        operator_j.one_body.reduced_matrix_element[i] = \
+            interaction.one_body.reduced_matrix_element[i]*one_body_mass_dependence*factor
+
+    # TWO-BODY
+    if interaction.two_body.method == 1:
+        two_body_mass_dependence = (nucleus_mass/operator_j.two_body.im0)**operator_j.two_body.pwr
+    else:
+        msg = "Only method 1 is implemented for two-body."
+        msg += f" Got: {interaction.two_body.method}."
+        raise NotImplementedError(msg)
+
+    for i in range(interaction.two_body.n_elements):
+        """
+        Two-body loop.
+        """
+        operator_j.two_body.reduced_matrix_element[i] = \
+            interaction.two_body.reduced_matrix_element[i]*two_body_mass_dependence
+
+        isign_01 = 1    # NOTE: Dont know what these are yet.
+        isign_23 = 1
+
+        if (
+            (interaction.two_body.orbital_0[i] > interaction.two_body.orbital_1[i]) or
+            (interaction.two_body.orbital_2[i] > interaction.two_body.orbital_3[i])
+        ):
+            """
+            NOTE: Don't know why this has to happen (copied from
+            operator_jscheme.f90). gs8.snt, jun45.snt and usda.snt
+            do not fulfill this condition. For now this raises an error.
             
-            # if (
-            #     (orbital_1 <= model_space.n_proton_orbitals) and
-            #     (orbital_3 <= model_space.n_proton_orbitals)
-            # ):
-            #     """
-            #     If orbital 1 and 3 are smaller or equal to the number of
-            #     proton orbitals, then ... (?)
-            #     """
-            #     ipn = 0 # Index proton neutron?
-
-            # elif (
-            #     (orbital_0 > model_space.n_proton_orbitals) and
-            #     (orbital_2 > model_space.n_proton_orbitals)
-            # ):
-            #     """
-            #     If orbital 0 and 2 are greater than the number of proton
-            #     orbitals, then ... (?)
-            #     """
-            #     ipn = 1
-
-            # elif (
-            #     (orbital_0 <= model_space.n_proton_orbitals) and
-            #     (orbital_2 <= model_space.n_proton_orbitals) and
-            #     (orbital_1 >  model_space.n_proton_orbitals) and
-            #     (orbital_3 >  model_space.n_proton_orbitals)
-            # ):
-            #     ipn = 2
+            if orbital_0 > orbital_1:
+                orbital_0, orbital_1 = orbital_1, orbital_0
+                isign_01 = (-1)**((model_space.j(orbital_0) + model_space.j(orbital_1))/2 - jj + 1)
             
-            # else:
-            #     """
-            #     NOTE: I dont know the consequences of this yet.
-            #     """
-            #     msg = "Error in orbital indices from interaction file: "
-            #     msg += f"{path}."
-            #     raise RuntimeError(msg)
+            if orbital_2 > orbital_3:
+                orbital_2, orbital_3 = orbital_3, orbital_2
+                isign_23 = (-1)**((model_space.j(orbital_2) + model_space.j(orbital_3))/2 - jj + 1)
+            """
+            msg = "orbital_0 > orbital_1 or orbital_2 > orbital_3."
+            msg += " Don't know why this has to be taken care of."
+            raise NotImplementedError(msg)
 
-            # ij_01 = jcouple(jj, parity, ipn).idxrev(orbital_0, orbital_1)
-            # ij_23 = jcouple(jj, parity, ipn).idxrev(orbital_2, orbital_3)
+        operator_j.two_body.reduced_matrix_element[i] *= isign_01*isign_23  # Pointless as of now, since the previous if statement is not implemented yet.
+        
+        if (
+            (interaction.two_body.orbital_1[i] <= interaction.model_space.n_proton_orbitals) and
+            (interaction.two_body.orbital_3[i] <= interaction.model_space.n_proton_orbitals)
+        ):
+            """
+            If orbital 1 and 3 are smaller or equal to the number of
+            proton orbitals, then ... (?)
+            """
+            ipn = 0 # Index proton neutron?
+
+        elif (
+            (interaction.two_body.orbital_0[i] > interaction.model_space.n_proton_orbitals) and
+            (interaction.two_body.orbital_2[i] > interaction.model_space.n_proton_orbitals)
+        ):
+            """
+            If orbital 0 and 2 are greater than the number of proton
+            orbitals, then ... (?)
+            """
+            ipn = 1
+
+        elif (
+            (interaction.two_body.orbital_0[i] <= interaction.model_space.n_proton_orbitals) and
+            (interaction.two_body.orbital_2[i] <= interaction.model_space.n_proton_orbitals) and
+            (interaction.two_body.orbital_1[i] >  interaction.model_space.n_proton_orbitals) and
+            (interaction.two_body.orbital_3[i] >  interaction.model_space.n_proton_orbitals)
+        ):
+            ipn = 2
+        
+        else:
+            """
+            NOTE: I dont know the consequences of this yet.
+            """
+            msg = "Error in orbital indices from interaction file: "
+            msg += f"{path}."
+            raise RuntimeError(msg)
+
+        # ij_01 = jcouple(jj, parity, ipn).idxrev(orbital_0, orbital_1)
+        # ij_23 = jcouple(jj, parity, ipn).idxrev(orbital_2, orbital_3)
 
         # print(model_space.parity)
         # print(f"{np.unique(tmp) = }")
@@ -331,11 +412,14 @@ def read_interaction_file(
             # n_onebody_interactions = 1
         # dep = (dble(mass)/dble(im0))**pwr
 
-        read_interaction_time = time.perf_counter() - read_interaction_time
-        if flags.debug:
-            print("--------")
-            print(f"{read_interaction_time = :.4f} s")
-            print("--------")
+    operator_j_scheme_time = time.perf_counter() - operator_j_scheme_time
+    if flags.debug:
+        print(f"{operator_j_scheme_time = :.4f} s")
 
 if __name__ == "__main__":
-    read_interaction_file(path="usda.snt")
+    flags.debug = True
+    # read_interaction_file(path="usda.snt")
+    operator_j_scheme(
+        path = "../snt/usda.snt",
+        nucleus_mass = 20
+    )
