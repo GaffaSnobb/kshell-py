@@ -26,6 +26,10 @@ def test_model_space():
     j_expected = [
         3, 5, 1, 3, 5, 1
     ]
+    jz_expected = [
+        [-3, -1, 1, 3], [-5, -3, -1, 1, 3, 5], [-1, 1],
+        [-3, -1, 1, 3], [-5, -3, -1, 1, 3, 5], [-1, 1]
+    ]
     isospin_expected = [
         -1, -1, -1, 1, 1, 1
     ]
@@ -97,6 +101,12 @@ def test_model_space():
         success = parity_expected[i] == interaction.model_space.parity[i]
         msg = f"Error in parity orbital number {i} in {INTERACTION_FILE_PATH}."
         msg += f" Expected: {parity_expected[i]}, got: {interaction.model_space.parity[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_orbitals):
+        success = all(jz_expected[i] == interaction.model_space.jz[i])
+        msg = f"Error in jz orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {jz_expected[i]}, got: {interaction.model_space.jz[i]}."
         assert success, msg
 
 def test_one_body():
