@@ -1,7 +1,9 @@
-from typing import NamedTuple
+from typing import Union
+from dataclasses import dataclass
 import numpy as np
 
-class ModelSpace(NamedTuple):
+@dataclass(slots=True)
+class ModelSpace:
     """
     For containing model space orbital information.
 
@@ -27,6 +29,9 @@ class ModelSpace(NamedTuple):
     j : np.ndarray
         The total angular momentum (j) of the orbital, multiplied by 2
         to circumvent fractions.
+
+    jz : np.ndarray
+        Possible jz values per j value.
     
     isospin : np.ndarray
         The isospin of the orbital. -1 for protons, +1 for neutrons.
@@ -42,24 +47,32 @@ class ModelSpace(NamedTuple):
 
     n_orbitals : int
         The total number of orbitals in the model space.
+
+    n_orbital_degeneracy : np.ndarray
+        The number of possible jz projections per orbital.
     """
     n: np.ndarray
     l: np.ndarray
     j: np.ndarray
+    jz: np.ndarray
     isospin: np.ndarray
     parity: np.ndarray
-    n_proton_orbitals: int
-    n_neutron_orbitals: int
+    
     n_orbitals: int
+    n_orbital_degeneracy: np.ndarray
+    n_proton_orbitals: Union[int, None] = None
+    n_neutron_orbitals: Union[int, None] = None
 
-class OneBody(NamedTuple):
+@dataclass(slots=True)
+class OneBody:
     orbital_0: np.ndarray   # Might remove these since they simply are 0, 1, 2, ...
     orbital_1: np.ndarray   # Might remove these since they simply are 0, 1, 2, ...
     reduced_matrix_element: np.ndarray
     method: int
     n_elements: int
 
-class TwoBody(NamedTuple):
+@dataclass(slots=True)
+class TwoBody:
     orbital_0: np.ndarray
     orbital_1: np.ndarray
     orbital_2: np.ndarray
@@ -72,7 +85,8 @@ class TwoBody(NamedTuple):
     pwr: float
     n_elements: int
 
-class Interaction(NamedTuple):
+@dataclass(slots=True)
+class Interaction:
     """
     For containing one-body and two-body matrix elements of the
     interaction, as well as the model space parameters.
@@ -105,16 +119,20 @@ class Interaction(NamedTuple):
     one_body: OneBody
     two_body: TwoBody
     model_space: ModelSpace
+    protons: ModelSpace
+    neutrons: ModelSpace
 
     n_core_protons: int
     n_core_neutrons: int
     n_core_nucleons: int
 
-class OperatorJ(NamedTuple):
+@dataclass(slots=True)
+class OperatorJ:
     one_body: OneBody
     two_body: TwoBody
 
-class CouplingIndices(NamedTuple):
+@dataclass(slots=True)
+class CouplingIndices:
     """
     Description copy-paste from type index_jcouple in
     operator_jscheme.f90:
@@ -127,6 +145,6 @@ class CouplingIndices(NamedTuple):
     ! idxrev : reverse index (i,j) to n
     ! 
     """
-    n: int
-    idx: np.ndarray         # 2D integer array.
-    idx_reverse: np.ndarray # 2D integer array.
+    n: Union[int, None] = None
+    idx: Union[np.ndarray, None] = None         # 2D integer array.
+    idx_reverse: Union[np.ndarray, None] = None # 2D integer array.
