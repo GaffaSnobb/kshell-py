@@ -1,7 +1,9 @@
 import math, sys, time, ast
 import numpy as np
-from data_structures import ModelSpace, Interaction, OneBody, TwoBody, OperatorJ
 from parameters import flags
+from data_structures import (
+    ModelSpace, Interaction, OneBody, TwoBody, OperatorJ, CouplingIndices
+)
 
 def read_interaction_file(
     path: str
@@ -64,14 +66,17 @@ def read_interaction_file(
                 n = np.zeros(n_orbitals, dtype=int),
                 l = np.zeros(n_orbitals, dtype=int),
                 j = np.zeros(n_orbitals, dtype=int),
+                jz = np.zeros(n_orbitals, dtype=np.ndarray),
                 isospin = np.zeros(n_orbitals, dtype=int),
                 parity = np.zeros(n_orbitals, dtype=int),
                 n_proton_orbitals = n_proton_orbitals,
                 n_neutron_orbitals = n_neutron_orbitals,
-                n_orbitals = n_orbitals
+                n_orbitals = n_orbitals,
+                n_orbital_degeneracy = np.zeros(n_orbitals, dtype=int)
             )
             break
-
+        
+        jz_max = -np.inf
         for i in range(model_space.n_orbitals):
             """
             ! ...
@@ -96,6 +101,10 @@ def read_interaction_file(
             model_space.j[i] = line_split[2]
             model_space.isospin[i] = line_split[3]
             model_space.parity[i] = (-1)**model_space.l[i]
+
+            model_space.n_orbital_degeneracy[i] = model_space.j[i] + 1  # Degeneracy is 2*j + 1, but the j values are stored as 2*j already.
+            model_space.jz[i] = np.arange(-model_space.j[i], model_space.j[i] + 1, 2, dtype=int)    # From -j to j in integer steps.
+            # model_space.jz_max = max(jz_max, max(model_space.jz[i]))
 
         for line in infile:
             """
@@ -235,6 +244,28 @@ def read_interaction_file(
 
             two_body.parity[i] = parity_twobody_01  # _01 arbitrary choice, can just as well use _23.
 
+        proton_model_space = ModelSpace(
+            n = model_space.n[:model_space.n_proton_orbitals],
+            l = model_space.l[:model_space.n_proton_orbitals],
+            j = model_space.j[:model_space.n_proton_orbitals],
+            jz = model_space.jz[:model_space.n_proton_orbitals],
+            isospin = model_space.isospin[:model_space.n_proton_orbitals], 
+            parity = model_space.parity[:model_space.n_proton_orbitals],
+            n_orbitals = model_space.n_proton_orbitals,
+            n_orbital_degeneracy = model_space.n_orbital_degeneracy[:model_space.n_proton_orbitals]
+        )
+
+        neutron_model_space = ModelSpace(
+            n = model_space.n[model_space.n_proton_orbitals:],
+            l = model_space.l[model_space.n_proton_orbitals:],
+            j = model_space.j[model_space.n_proton_orbitals:],
+            jz = model_space.jz[model_space.n_proton_orbitals:],
+            isospin = model_space.isospin[model_space.n_proton_orbitals:],
+            parity = model_space.parity[model_space.n_proton_orbitals:],
+            n_orbitals = model_space.n_neutron_orbitals,
+            n_orbital_degeneracy = model_space.n_orbital_degeneracy[model_space.n_proton_orbitals:]
+        )
+
         interaction = Interaction(
             one_body = one_body,
             two_body = two_body,
@@ -242,6 +273,8 @@ def read_interaction_file(
             n_core_protons = n_core_protons,
             n_core_neutrons = n_core_neutrons,
             n_core_nucleons = n_core_protons + n_core_neutrons,
+            protons = proton_model_space,
+            neutrons = neutron_model_space
         )
 
         read_interaction_time = time.perf_counter() - read_interaction_time
@@ -249,6 +282,190 @@ def read_interaction_file(
             print(f"{read_interaction_time = :.4f} s")
 
         return interaction
+
+def initialise_operator_j_scheme(interaction: Interaction):
+    """
+    Initialise indices.
+
+    Remember that
+        
+        kini(:) = (/         1, n_j_orbitals(1)+1 /)
+        kfin(:) = (/ n_j_orbitals(1), n_j_orbitals_pn   /)
+    
+    which are stored here as n_j_orbitals(1) ->
+    interaction.model_space.n_proton_orbitals, n_j_orbitals_pn ->
+    interaction.model_space.n_orbitals.
+
+    Parameters
+    ----------
+    interaction : Interaction
+        Contains all interaction parameters from the .snt file.
+    """
+    n_parity_idx = 2
+    n_proton_neutron_idx = 3   # Proton, neutron, both.
+    jz_max = np.sort(np.concatenate(interaction.model_space.jz))
+    jz_max = jz_max[-2:].sum()  # Sum the two largest jz values.
+    j_couple = np.zeros((jz_max + 1, n_parity_idx, n_proton_neutron_idx), dtype=CouplingIndices)
+
+    for i in range(jz_max + 1):
+        """
+        Initialise all CouplingIndices objects with n values of zero.
+        """
+        for j in range(n_parity_idx):
+            for k in range(n_proton_neutron_idx):
+                j_couple[i, j, k] = CouplingIndices(n=0)
+
+    for proton_neutron_idx in range(n_proton_neutron_idx):
+        """
+        Proton, neutron, both loop.
+        """
+        for loop in range(2):
+            """
+            No idea yet.
+            """
+            if loop == 1:
+                """
+                No idea yet
+                """
+                for parity_idx in range(n_parity_idx):
+                    """
+                    Parity loop.
+                    """
+                    for jcpl in range(jz_max + 1):
+                        """
+                        (jcpl is probably j_couple)
+                        The Fortran loop actually starts at 0 here and
+                        goes to and including jz_max. All the
+                        other loops starts at 1 in the Fortran code, so
+                        they have been adjusted with -1 here in the
+                        Python code. It is because of 
+
+                        allocate(jcouple(0:jcouplemax, 2, 3))
+
+                        meaning that jcouple indexing starts at 0, not
+                        1, though only for the first dimension.
+                        """
+                        n_tmp = j_couple[jcpl, parity_idx, proton_neutron_idx].n
+                        j_couple[jcpl, parity_idx, proton_neutron_idx].idx = np.zeros((2, n_tmp), dtype=int)
+
+                        if (proton_neutron_idx == 0):# or (proton_neutron_idx == 1):
+                            """
+                            proton_neutron_idx == 0 proton and proton_neutron_idx == 1 neutron?
+                            If proton_neutron_idx == 0, then kini[proton_neutron_idx] is 1.
+                            If proton_neutron_idx == 0, then kfin[proton_neutron_idx] is n_proton_orbitals.
+                            
+                            If proton_neutron_idx == 1, then kini[proton_neutron_idx] is n_proton_orbitals + 1.
+                            If proton_neutron_idx == 1, then kfin[proton_neutron_idx] is n_orbitals.
+
+                            In other words, for proton_neutron_idx = 0 j_couple[jcpl, parity_idx, proton_neutron_idx].idx_reverse
+                            is a n_proton_orbitals x n_proton_orbitals array,
+                            while for proton_neutron_idx = 1 it is a n_neutron_orbitals x n_neutron_orbitals array.
+                            Note that in the Fortran code, the array
+                            indices are adjusted so that they match with
+                            the orbital numbering, meaning that the
+                            neutron orbital array starts at index n_proton_orbitals + 1
+                            and ends at n_orbitals instead of starting
+                            at 0 and going to n_orbitals - 1. In this
+                            Python code, that aspect must be handled
+                            when accessing the arrays.
+                            """
+                            j_couple[jcpl, parity_idx, proton_neutron_idx].idx_reverse = np.zeros(
+                                shape = (interaction.model_space.n_proton_orbitals, interaction.model_space.n_proton_orbitals),   # allocate(jc_p%idxrev( kini(proton_neutron_idx):kfin(proton_neutron_idx), kini(proton_neutron_idx):kfin(proton_neutron_idx) ))
+                                dtype = int
+                            )
+
+                        elif (proton_neutron_idx == 1):
+                            """
+                            Neutron.
+                            """
+                            j_couple[jcpl, parity_idx, proton_neutron_idx].idx_reverse = np.zeros(
+                                shape = (interaction.model_space.n_neutron_orbitals, interaction.model_space.n_neutron_orbitals),   # allocate(jc_p%idxrev( kini(proton_neutron_idx):kfin(proton_neutron_idx), kini(proton_neutron_idx):kfin(proton_neutron_idx) ))
+                                dtype = int
+                            )
+                        elif (proton_neutron_idx == 2):
+                            """
+                            Both. NOTE: Beware of Fortran vs. numpy indexing (row, col)?
+                            """
+                            j_couple[jcpl, parity_idx, proton_neutron_idx].idx_reverse = np.zeros(
+                                shape = (interaction.model_space.n_proton_orbitals, interaction.model_space.n_neutron_orbitals),   # allocate(jc_p%idxrev( kini(proton_neutron_idx):kfin(proton_neutron_idx), kini(proton_neutron_idx):kfin(proton_neutron_idx) ))
+                                dtype = int
+                            )
+
+                        # j_couple[jcpl, parity_idx, proton_neutron_idx].idx[:] = 0 # NOTE: Not necessarry since np.zeros sets all values to zero.
+                        # j_couple[jcpl, parity_idx, proton_neutron_idx].idx_reverse[:] = 0
+                    
+            # end if loop == 1:
+            # j_couple[:, :, proton_neutron_idx].n = 0 # Done in initialisation.
+            
+            # couple()
+            # if j_couplings[-1] > jz_max:
+            #     raise error
+            if proton_neutron_idx == 0:
+                couple(
+                    left_orbitals = interaction.protons,
+                    right_orbitals = interaction.protons,
+                    j_couple = j_couple,
+                    proton_neutron_idx = proton_neutron_idx,
+                    loop = loop,
+                )
+
+def couple(
+    left_orbitals: ModelSpace,
+    right_orbitals: ModelSpace,
+    j_couple: np.ndarray,
+    proton_neutron_idx: int,
+    loop: int,
+):
+    """
+    
+    """
+    for left_idx in range(left_orbitals.n_orbitals):
+        for right_idx in range(left_idx, right_orbitals.n_orbitals):
+            
+            if left_orbitals.parity[left_idx] == right_orbitals.parity[right_idx]:
+                """
+                Does this account for both -1 and +1?
+                """
+                parity_idx = 0
+
+            else:
+                parity_idx = 1
+
+            if left_idx != right_idx:
+                """
+                Calculate the allowed couplings between two different orbitals.
+                """
+                j_couplings = np.arange(
+                    start = abs(left_orbitals.j[left_idx] - right_orbitals.j[right_idx])/2,
+                    stop = abs(left_orbitals.j[left_idx] + right_orbitals.j[right_idx])/2 + 1,
+                    step = 1,
+                )
+            else:
+                """
+                Calculate the allowed couplings between two identical orbitals.
+                """
+                j_couplings = np.arange(
+                    start = 0,
+                    stop = left_orbitals.j[left_idx] - 1,   # NOTE: Add 2 to include the last value?
+                    step = 2,
+                )
+
+            for j_cpl in j_couplings:
+                """
+                Loop over all allowed couplings.
+                """
+                if loop == 1:
+                    """
+                    Dont know why to check for loop == 1 yet.
+                    """
+                    j_couple[j_cpl, parity_idx, proton_neutron_idx].n += 1
+                    n_tmp = j_couple[j_cpl, parity_idx, proton_neutron_idx].n   # Just to make the code more readable.
+                    print(f"{j_couple[j_cpl, parity_idx, proton_neutron_idx].idx = }")
+                    print(f"{j_cpl = }")
+                    print(f"{parity_idx = }")
+                    print(f"{proton_neutron_idx = }")
+                    j_couple[j_cpl, parity_idx, proton_neutron_idx].idx[:, n_tmp] = [left_idx, right_idx]
+                    j_couple[j_cpl, parity_idx, proton_neutron_idx].idx_reverse[left_idx, right_idx] = n_tmp
 
 def operator_j_scheme(
     path: str,
@@ -269,6 +486,8 @@ def operator_j_scheme(
         Mass number of the nucleus. E.g. 20 for 20Ne.
     """
     interaction = read_interaction_file(path=path)
+    initialise_operator_j_scheme(interaction=interaction)
+    sys.exit()
     
     operator_j_scheme_time = time.perf_counter()
 
@@ -359,18 +578,21 @@ def operator_j_scheme(
         operator_j.two_body.reduced_matrix_element[i] *= isign_01*isign_23  # Pointless as of now, since the previous if statement is not implemented yet.
         
         if (
-            (interaction.two_body.orbital_1[i] <= interaction.model_space.n_proton_orbitals) and
-            (interaction.two_body.orbital_3[i] <= interaction.model_space.n_proton_orbitals)
+            (interaction.two_body.orbital_1[i] <= (interaction.model_space.n_proton_orbitals - 1)) and
+            (interaction.two_body.orbital_3[i] <= (interaction.model_space.n_proton_orbitals - 1))
         ):
             """
             If orbital 1 and 3 are smaller or equal to the number of
             proton orbitals, then ... (?)
+
+            Subtracting 1 to correct for the subtraction of the orbital
+            indices.
             """
             ipn = 0 # Index proton neutron?
 
         elif (
-            (interaction.two_body.orbital_0[i] > interaction.model_space.n_proton_orbitals) and
-            (interaction.two_body.orbital_2[i] > interaction.model_space.n_proton_orbitals)
+            (interaction.two_body.orbital_0[i] > (interaction.model_space.n_proton_orbitals - 1)) and
+            (interaction.two_body.orbital_2[i] > (interaction.model_space.n_proton_orbitals - 1))
         ):
             """
             If orbital 0 and 2 are greater than the number of proton
@@ -379,10 +601,10 @@ def operator_j_scheme(
             ipn = 1
 
         elif (
-            (interaction.two_body.orbital_0[i] <= interaction.model_space.n_proton_orbitals) and
-            (interaction.two_body.orbital_2[i] <= interaction.model_space.n_proton_orbitals) and
-            (interaction.two_body.orbital_1[i] >  interaction.model_space.n_proton_orbitals) and
-            (interaction.two_body.orbital_3[i] >  interaction.model_space.n_proton_orbitals)
+            (interaction.two_body.orbital_0[i] <= (interaction.model_space.n_proton_orbitals - 1)) and
+            (interaction.two_body.orbital_2[i] <= (interaction.model_space.n_proton_orbitals - 1)) and
+            (interaction.two_body.orbital_1[i] >  (interaction.model_space.n_proton_orbitals - 1)) and
+            (interaction.two_body.orbital_3[i] >  (interaction.model_space.n_proton_orbitals - 1))
         ):
             ipn = 2
         
@@ -390,12 +612,22 @@ def operator_j_scheme(
             """
             NOTE: I dont know the consequences of this yet.
             """
-            msg = "Error in orbital indices from interaction file: "
-            msg += f"{path}."
+            msg = f"Error in orbital index iteration {i} from interaction file: "
+            msg += f"{path}.\n"
+            msg += f"{interaction.two_body.orbital_0[i] = }\n"
+            msg += f"{interaction.two_body.orbital_1[i] = }\n"
+            msg += f"{interaction.two_body.orbital_2[i] = }\n"
+            msg += f"{interaction.two_body.orbital_3[i] = }\n"
+            msg += f"{interaction.model_space.n_proton_orbitals = }"
             raise RuntimeError(msg)
 
-        # ij_01 = jcouple(jj, parity, ipn).idxrev(orbital_0, orbital_1)
-        # ij_23 = jcouple(jj, parity, ipn).idxrev(orbital_2, orbital_3)
+        ij_01 = jcouple[
+            interaction.two_body.jj, interaction.two_body.parity, ipn
+        ].idxrev[interaction.two_body.orbital_0, interaction.two_body.orbital_1]
+        
+        ij_23 = jcouple[
+            interaction.two_body.jj, interaction.two_body.parity, ipn
+        ].idxrev[interaction.two_body.orbital_2, interaction.two_body.orbital_3]
 
         # print(model_space.parity)
         # print(f"{np.unique(tmp) = }")
