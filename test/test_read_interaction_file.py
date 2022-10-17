@@ -109,6 +109,80 @@ def test_model_space():
         msg += f" Expected: {jz_expected[i]}, got: {interaction.model_space.jz[i]}."
         assert success, msg
 
+def test_proton_model_space():
+    for i in range(interaction.model_space.n_proton_orbitals):
+        success = interaction.protons.n[i] == interaction.model_space.n[i]
+        msg = f"Error in n proton orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.n[i]}, got: {interaction.protons.n[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_proton_orbitals):
+        success = interaction.protons.l[i] == interaction.model_space.l[i]
+        msg = f"Error in l proton orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.l[i]}, got: {interaction.protons.l[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_proton_orbitals):
+        success = interaction.protons.j[i] == interaction.model_space.j[i]
+        msg = f"Error in j proton orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.j[i]}, got: {interaction.protons.j[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_proton_orbitals):
+        success = interaction.protons.isospin[i] == interaction.model_space.isospin[i]
+        msg = f"Error in isospin proton orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.isospin[i]}, got: {interaction.protons.isospin[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_proton_orbitals):
+        success = interaction.protons.parity[i] == interaction.model_space.parity[i]
+        msg = f"Error in parity proton orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.parity[i]}, got: {interaction.protons.parity[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_proton_orbitals):
+        success = all(interaction.protons.jz[i] == interaction.model_space.jz[i])
+        msg = f"Error in jz proton orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.jz[i]}, got: {interaction.protons.jz[i]}."
+        assert success, msg
+
+def test_neutron_model_space():
+    for i in range(interaction.model_space.n_neutron_orbitals):
+        success = interaction.neutrons.n[i] == interaction.model_space.n[i + interaction.model_space.n_proton_orbitals]
+        msg = f"Error in n neutron orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.n[i + interaction.model_space.n_proton_orbitals]}, got: {interaction.neutrons.n[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_neutron_orbitals):
+        success = interaction.neutrons.l[i] == interaction.model_space.l[i + interaction.model_space.n_proton_orbitals]
+        msg = f"Error in l neutron orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.l[i + interaction.model_space.n_proton_orbitals]}, got: {interaction.neutrons.l[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_neutron_orbitals):
+        success = interaction.neutrons.j[i] == interaction.model_space.j[i + interaction.model_space.n_proton_orbitals]
+        msg = f"Error in j neutron orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.j[i + interaction.model_space.n_proton_orbitals]}, got: {interaction.neutrons.j[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_neutron_orbitals):
+        success = interaction.neutrons.isospin[i] == interaction.model_space.isospin[i + interaction.model_space.n_proton_orbitals]
+        msg = f"Error in isospin neutron orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.isospin[i + interaction.model_space.n_proton_orbitals]}, got: {interaction.neutrons.isospin[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_neutron_orbitals):
+        success = interaction.neutrons.parity[i] == interaction.model_space.parity[i + interaction.model_space.n_proton_orbitals]
+        msg = f"Error in parity neutron orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.parity[i + interaction.model_space.n_proton_orbitals]}, got: {interaction.neutrons.parity[i]}."
+        assert success, msg
+
+    for i in range(interaction.model_space.n_neutron_orbitals):
+        success = all(interaction.neutrons.jz[i] == interaction.model_space.jz[i + interaction.model_space.n_proton_orbitals])
+        msg = f"Error in jz neutron orbital number {i} in {INTERACTION_FILE_PATH}."
+        msg += f" Expected: {interaction.model_space.jz[i + interaction.model_space.n_proton_orbitals]}, got: {interaction.neutrons.jz[i]}."
+        assert success, msg
+
 def test_one_body():
     reduced_matrix_element_expected = [
         1.97980000, -3.94360000, -3.06120000, 1.97980000, -3.94360000,
@@ -313,5 +387,7 @@ def test_operator_j_one_body_reduced_matrix_element():
 
 if __name__ == "__main__":
     test_model_space()
+    test_proton_model_space()
+    test_neutron_model_space()
     test_one_body()
     test_two_body()
