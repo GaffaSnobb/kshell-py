@@ -119,8 +119,8 @@ class Interaction:
     one_body: OneBody
     two_body: TwoBody
     model_space: ModelSpace
-    protons: ModelSpace
-    neutrons: ModelSpace
+    proton_model_space: ModelSpace
+    neutron_model_space: ModelSpace
 
     n_core_protons: int
     n_core_neutrons: int
@@ -143,8 +143,17 @@ class CouplingIndices:
     ! n : the number of (i,j)
     ! idx(2,n) : index to i and j
     ! idxrev : reverse index (i,j) to n
-    ! 
+    !
+
+    Attributes
+    ----------
+    n_couplings : Union[int, None]
+        The number of couplings for a given [jcpl, parity_idx,
+        proton_neutron_idx].
+    
+    idx : Union[np.ndarray, None]
+        The indices of the orbitals that couple to each other.
     """
-    n: Union[int, None] = None
+    n_couplings: Union[int, None] = None
     idx: Union[np.ndarray, None] = None         # 2D integer array.
     idx_reverse: Union[np.ndarray, None] = None # 2D integer array.
