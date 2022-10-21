@@ -10,7 +10,7 @@ def read_interaction_file(
 ) -> Interaction:
     """
     Read an interaction file (.snt) and store all relevant parameters
-    as an Interaction named tuple. Part of Python translation of
+    as an Interaction dataclass. Part of Python translation of
     operator_jscheme.f90 (subroutine read_intfile).
 
     Changes
@@ -76,7 +76,7 @@ def read_interaction_file(
             )
             break
         
-        jz_max = -np.inf
+        # jz_max = -np.inf
         for i in range(model_space.n_orbitals):
             """
             ! ...
@@ -244,7 +244,15 @@ def read_interaction_file(
 
             two_body.parity[i] = parity_twobody_01  # _01 arbitrary choice, can just as well use _23.
 
-        proton_model_space = ModelSpace(
+        max_proton_j_couple = np.max(np.concatenate(model_space.jz[:model_space.n_proton_orbitals]))
+        max_neutron_j_couple = np.max(np.concatenate(model_space.jz[model_space.n_proton_orbitals:]))
+        max_j_couple = max(max_proton_j_couple, max_neutron_j_couple) + 1
+
+        model_space.max_proton_j_couple = max_proton_j_couple
+        model_space.max_neutron_j_couple = max_neutron_j_couple
+        model_space.max_j_couple = max_j_couple
+
+        proton_model_space: ModelSpace = ModelSpace(
             n = model_space.n[:model_space.n_proton_orbitals],
             l = model_space.l[:model_space.n_proton_orbitals],
             j = model_space.j[:model_space.n_proton_orbitals],
@@ -252,10 +260,11 @@ def read_interaction_file(
             isospin = model_space.isospin[:model_space.n_proton_orbitals], 
             parity = model_space.parity[:model_space.n_proton_orbitals],
             n_orbitals = model_space.n_proton_orbitals,
-            n_orbital_degeneracy = model_space.n_orbital_degeneracy[:model_space.n_proton_orbitals]
+            n_orbital_degeneracy = model_space.n_orbital_degeneracy[:model_space.n_proton_orbitals],
+            max_j_couple = max_proton_j_couple
         )
 
-        neutron_model_space = ModelSpace(
+        neutron_model_space: ModelSpace = ModelSpace(
             n = model_space.n[model_space.n_proton_orbitals:],
             l = model_space.l[model_space.n_proton_orbitals:],
             j = model_space.j[model_space.n_proton_orbitals:],
@@ -263,10 +272,11 @@ def read_interaction_file(
             isospin = model_space.isospin[model_space.n_proton_orbitals:],
             parity = model_space.parity[model_space.n_proton_orbitals:],
             n_orbitals = model_space.n_neutron_orbitals,
-            n_orbital_degeneracy = model_space.n_orbital_degeneracy[model_space.n_proton_orbitals:]
+            n_orbital_degeneracy = model_space.n_orbital_degeneracy[model_space.n_proton_orbitals:],
+            max_j_couple = max_neutron_j_couple
         )
 
-        interaction = Interaction(
+        interaction: Interaction = Interaction(
             one_body = one_body,
             two_body = two_body,
             model_space = model_space,
@@ -283,28 +293,30 @@ def read_interaction_file(
 
         return interaction
 
-def initialise_operator_j_scheme(
+def initialise_operator_j_couplings(
     interaction: Interaction
 ) -> CouplingIndices:
     """
     Initialise the j-scheme operator.
     """
+    initialise_operator_j_couplings_time = time.perf_counter()
     n_parities: int = 2
     n_proton_neutron: int = 3   # Proton, neutron, both.
     
     proton_ms: ModelSpace = interaction.proton_model_space
     neutron_ms: ModelSpace = interaction.neutron_model_space
+    max_j_couple: int = interaction.model_space.max_j_couple
     
-    max_proton_j_couplings = np.max(np.concatenate(proton_ms.jz))
-    max_neutron_j_couplings = np.max(np.concatenate(neutron_ms.jz))
-    max_j_couplings = max(max_proton_j_couplings, max_neutron_j_couplings) + 1
+    # max_proton_j_couple = np.max(np.concatenate(proton_ms.jz))
+    # max_neutron_j_couple = np.max(np.concatenate(neutron_ms.jz))
+    # max_j_couple = max(max_proton_j_couple, max_neutron_j_couple) + 1
     j_couple: np.ndarray = np.zeros(
-        shape = (max_j_couplings, n_parities, n_proton_neutron),
+        shape = (max_j_couple, n_parities, n_proton_neutron),
         dtype = CouplingIndices
     )
 
     # Initialise the proton coupling indices.
-    for i in range(max_j_couplings):
+    for i in range(max_j_couple):
         for j in range(n_parities):
             j_couple[i, j, 0]: CouplingIndices = CouplingIndices(
                 n_couplings = 0,
@@ -313,7 +325,7 @@ def initialise_operator_j_scheme(
             )
 
     # Initialise the neutron coupling indices.
-    for i in range(max_j_couplings):
+    for i in range(max_j_couple):
         for j in range(n_parities):
             j_couple[i, j, 1]: CouplingIndices = CouplingIndices(
                 n_couplings = 0,
@@ -322,7 +334,7 @@ def initialise_operator_j_scheme(
             )
 
     # Initialise the proton-neutron coupling indices.
-    for i in range(max_j_couplings):
+    for i in range(max_j_couple):
         for j in range(n_parities):
             j_couple[i, j, 2]: CouplingIndices = CouplingIndices(
                 n_couplings = 0,
@@ -351,11 +363,9 @@ def initialise_operator_j_scheme(
         proton_neutron_idx = 2
     )
 
-    # for i in range(jz_max):
-    #     # for j in range(n_parities):
-    #     print(j_couple[i, 1, 0].n_couplings)
-    #     print(j_couple[i, 1, 0].idx)
-    #     print(j_couple[i, 1, 0].idx_reverse)
+    initialise_operator_j_couplings_time = time.perf_counter() - initialise_operator_j_couplings_time
+    if flags.debug:
+        print(f"{initialise_operator_j_couplings_time = :.4f} s")
 
     return j_couple
     
@@ -380,7 +390,7 @@ def calculate_couplings(
         Either proton or neutron model space.
 
     j_couple : np.ndarray
-        Array of coupling indices.
+        Array of CouplingIndices.
     """
     for orbital_1 in range(model_space_1.n_orbitals):
         
@@ -482,42 +492,64 @@ def operator_j_scheme(
     nucleus_mass : int
         Mass number of the nucleus. E.g. 20 for 20Ne.
     """
-    interaction = read_interaction_file(path=path)
-    initialise_operator_j_scheme(interaction=interaction)
-    sys.exit()
+    n_parities = 2
+    n_proton_neutron = 3
+    interaction: Interaction = read_interaction_file(path=path)
+    j_couple: CouplingIndices = initialise_operator_j_couplings(interaction=interaction)
     
-    operator_j_scheme_time = time.perf_counter()
+    operator_j_scheme_time: float = time.perf_counter()
 
-    operator_j = OperatorJ(
-        one_body = OneBody(
-            orbital_0 = np.copy(interaction.one_body.orbital_0),
-            orbital_1 = np.copy(interaction.one_body.orbital_1),
-            reduced_matrix_element = np.zeros_like(interaction.one_body.reduced_matrix_element),
-            method = interaction.one_body.method,
-            n_elements = interaction.one_body.n_elements,
-        ),
-        two_body = TwoBody(
-            orbital_0 = np.copy(interaction.two_body.orbital_0),
-            orbital_1 = np.copy(interaction.two_body.orbital_1),
-            orbital_2 = np.copy(interaction.two_body.orbital_2),
-            orbital_3 = np.copy(interaction.two_body.orbital_3),
-            parity = np.copy(interaction.two_body.parity),
-            jj = np.copy(interaction.two_body.jj),
-            reduced_matrix_element = np.zeros_like(interaction.two_body.reduced_matrix_element),
-            method = interaction.two_body.method,
-            im0 = interaction.two_body.im0,
-            pwr = interaction.two_body.pwr,
-            n_elements = interaction.two_body.n_elements,
-        )
+    operator_j: OperatorJ = OperatorJ(
+        one_body_reduced_matrix_element = np.zeros(interaction.one_body.n_elements, dtype=float),
+        two_body_reduced_matrix_element = np.zeros((interaction.model_space.max_j_couple, n_parities, n_proton_neutron), dtype=np.ndarray),
     )
+
+    for i in range(interaction.model_space.max_j_couple):
+        for j in range(n_parities):
+            for k in range(n_proton_neutron):
+                operator_j.two_body_reduced_matrix_element[i, j, k] = np.zeros(
+                    shape = (j_couple[i, j, k].n_couplings, j_couple[i, j, 2 - k].n_couplings),
+                    dtype = float
+                )
+
+    # operator_j = OperatorJ( # Make copies so that the original one- and two-body objects are not edited.
+    #     one_body = OneBody(
+    #         orbital_0 = np.copy(interaction.one_body.orbital_0),
+    #         orbital_1 = np.copy(interaction.one_body.orbital_1),
+    #         reduced_matrix_element = np.zeros_like(interaction.one_body.reduced_matrix_element),
+    #         method = interaction.one_body.method,
+    #         n_elements = interaction.one_body.n_elements,
+    #     ),
+    #     two_body = TwoBody(
+    #         orbital_0 = np.copy(interaction.two_body.orbital_0),
+    #         orbital_1 = np.copy(interaction.two_body.orbital_1),
+    #         orbital_2 = np.copy(interaction.two_body.orbital_2),
+    #         orbital_3 = np.copy(interaction.two_body.orbital_3),
+    #         parity = np.copy(interaction.two_body.parity),
+    #         jj = np.copy(interaction.two_body.jj),
+    #         reduced_matrix_element = np.zeros_like(interaction.two_body.reduced_matrix_element),
+    #         method = interaction.two_body.method,
+    #         im0 = interaction.two_body.im0,
+    #         pwr = interaction.two_body.pwr,
+    #         n_elements = interaction.two_body.n_elements,
+    #     )
+    # )
+
+    # Aliases for shorter code.
+    one_body: OneBody = interaction.one_body
+    two_body: TwoBody = interaction.two_body
+    model_space: ModelSpace = interaction.model_space
+
+    sys.exit()
+
     # ONE-BODY
-    if interaction.one_body.method == 0:
+    if one_body.method == 0:
         one_body_mass_dependence = 1    # NOTE: Whats this?
     else:
-        msg = f"one_body_mass_dependence only implemented for one-body method 0. Got {interaction.one_body.method}."
+        msg = f"one_body_mass_dependence only implemented for one-body method 0. Got {one_body.method}."
         raise NotImplementedError(msg)
 
-    for i in range(interaction.one_body.n_elements):
+    for i in range(one_body.n_elements):
         """
         One-body loop.
 
@@ -528,32 +560,51 @@ def operator_j_scheme(
         and gs8.snt) so I don't do that here. read_interaction_file also
         raises an error if they are not equal, so they will always be
         equal here.
+
+        From usda.snt:
+        ! num, method=,  hbar_omega
+        !  i  j     <i|H(1b)|j>
+        6   0
+        1   1      1.97980000
+        2   2     -3.94360000
+        3   3     -3.06120000
+        4   4      1.97980000
+        5   5     -3.94360000
+        6   6     -3.06120000
+
+        Note that the reduced matrix element for orbitals (i, j) is
+        equal to the reduced matrix element for orbitals (j, i) since
+        i = j.
         """
-        factor = math.sqrt(interaction.model_space.j[i] + 1) # NOTE: Figure out the origin of this factor.
-        operator_j.one_body.reduced_matrix_element[i] = \
-            interaction.one_body.reduced_matrix_element[i]*one_body_mass_dependence*factor
+        factor = math.sqrt(model_space.j[i] + 1) # NOTE: Figure out the origin of this factor.
+        one_body.reduced_matrix_element[i] = \
+            one_body.reduced_matrix_element[i]*one_body_mass_dependence*factor
 
     # TWO-BODY
-    if interaction.two_body.method == 1:
-        two_body_mass_dependence = (nucleus_mass/operator_j.two_body.im0)**operator_j.two_body.pwr
+    if two_body.method == 1:
+        """
+        This happens in subroutine read_firstline_2b in the Fortran
+        code. https://github.com/GaffaSnobb/kshell/blob/088e6b98d273a4b59d0e2d6d6348ec1012f8780c/src/operator_jscheme.f90#L233
+        """
+        two_body_mass_dependence = (nucleus_mass/two_body.im0)**two_body.pwr
     else:
         msg = "Only method 1 is implemented for two-body."
-        msg += f" Got: {interaction.two_body.method}."
+        msg += f" Got: {two_body.method}."
         raise NotImplementedError(msg)
 
-    for i in range(interaction.two_body.n_elements):
+    for i in range(two_body.n_elements):
         """
         Two-body loop.
         """
-        operator_j.two_body.reduced_matrix_element[i] = \
-            interaction.two_body.reduced_matrix_element[i]*two_body_mass_dependence
+        two_body.reduced_matrix_element[i] = \
+            two_body.reduced_matrix_element[i]*two_body_mass_dependence
 
         isign_01 = 1    # NOTE: Dont know what these are yet.
         isign_23 = 1
 
         if (
-            (interaction.two_body.orbital_0[i] > interaction.two_body.orbital_1[i]) or
-            (interaction.two_body.orbital_2[i] > interaction.two_body.orbital_3[i])
+            (two_body.orbital_0[i] > two_body.orbital_1[i]) or
+            (two_body.orbital_2[i] > two_body.orbital_3[i])
         ):
             """
             NOTE: Don't know why this has to happen (copied from
@@ -572,59 +623,56 @@ def operator_j_scheme(
             msg += " Don't know why this has to be taken care of."
             raise NotImplementedError(msg)
 
-        operator_j.two_body.reduced_matrix_element[i] *= isign_01*isign_23  # Pointless as of now, since the previous if statement is not implemented yet.
+        two_body.reduced_matrix_element[i] *= isign_01*isign_23  # Pointless as of now, since the previous if statement is not implemented yet.
         
         if (
-            (interaction.two_body.orbital_1[i] <= (interaction.model_space.n_proton_orbitals - 1)) and
-            (interaction.two_body.orbital_3[i] <= (interaction.model_space.n_proton_orbitals - 1))
+            (two_body.orbital_1[i] < (model_space.n_proton_orbitals)) and
+            (two_body.orbital_3[i] < (model_space.n_proton_orbitals))
         ):
             """
-            If orbital 1 and 3 are smaller or equal to the number of
-            proton orbitals, then ... (?)
-
-            Subtracting 1 to correct for the subtraction of the orbital
-            indices.
+            If orbital idx 1 and 3 are smaller than the number of
+            proton orbitals then they are proton orbitals.
             """
-            ipn = 0 # Index proton neutron?
+            proton_neutron_idx = 0  # 0 is proton.
 
         elif (
-            (interaction.two_body.orbital_0[i] > (interaction.model_space.n_proton_orbitals - 1)) and
-            (interaction.two_body.orbital_2[i] > (interaction.model_space.n_proton_orbitals - 1))
+            (two_body.orbital_0[i] >= (model_space.n_proton_orbitals)) and
+            (two_body.orbital_2[i] >= (model_space.n_proton_orbitals))
         ):
             """
-            If orbital 0 and 2 are greater than the number of proton
-            orbitals, then ... (?)
+            If orbital 0 and 2 are greater than or equal to the number
+            of proton orbitals then they are neutron orbitals.
             """
-            ipn = 1
+            proton_neutron_idx = 1  # 1 is neutron.
 
         elif (
-            (interaction.two_body.orbital_0[i] <= (interaction.model_space.n_proton_orbitals - 1)) and
-            (interaction.two_body.orbital_2[i] <= (interaction.model_space.n_proton_orbitals - 1)) and
-            (interaction.two_body.orbital_1[i] >  (interaction.model_space.n_proton_orbitals - 1)) and
-            (interaction.two_body.orbital_3[i] >  (interaction.model_space.n_proton_orbitals - 1))
+            (two_body.orbital_0[i] <  (model_space.n_proton_orbitals)) and
+            (two_body.orbital_2[i] <  (model_space.n_proton_orbitals)) and
+            (two_body.orbital_1[i] >= (model_space.n_proton_orbitals)) and
+            (two_body.orbital_3[i] >= (model_space.n_proton_orbitals))
         ):
-            ipn = 2
+            proton_neutron_idx = 2  # 2 is proton-neutron.
         
         else:
             """
-            NOTE: I dont know the consequences of this yet.
+            Two-body orbital indices are not valid.
             """
             msg = f"Error in orbital index iteration {i} from interaction file: "
             msg += f"{path}.\n"
-            msg += f"{interaction.two_body.orbital_0[i] = }\n"
-            msg += f"{interaction.two_body.orbital_1[i] = }\n"
-            msg += f"{interaction.two_body.orbital_2[i] = }\n"
-            msg += f"{interaction.two_body.orbital_3[i] = }\n"
-            msg += f"{interaction.model_space.n_proton_orbitals = }"
+            msg += f"{two_body.orbital_0[i] = }\n"
+            msg += f"{two_body.orbital_1[i] = }\n"
+            msg += f"{two_body.orbital_2[i] = }\n"
+            msg += f"{two_body.orbital_3[i] = }\n"
+            msg += f"{model_space.n_proton_orbitals = }"
             raise RuntimeError(msg)
 
         ij_01 = jcouple[
-            interaction.two_body.jj, interaction.two_body.parity, ipn
-        ].idxrev[interaction.two_body.orbital_0, interaction.two_body.orbital_1]
+            two_body.jj, two_body.parity, proton_neutron_idx
+        ].idxrev[two_body.orbital_0, two_body.orbital_1]
         
         ij_23 = jcouple[
-            interaction.two_body.jj, interaction.two_body.parity, ipn
-        ].idxrev[interaction.two_body.orbital_2, interaction.two_body.orbital_3]
+            two_body.jj, two_body.parity, proton_neutron_idx
+        ].idxrev[two_body.orbital_2, two_body.orbital_3]
 
         # print(model_space.parity)
         # print(f"{np.unique(tmp) = }")
