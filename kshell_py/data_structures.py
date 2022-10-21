@@ -50,6 +50,27 @@ class ModelSpace:
 
     n_orbital_degeneracy : np.ndarray
         The number of possible jz projections per orbital.
+
+    max_proton_j_couple : Union[int, None]
+        The maximum j value two protons in the highest angular momentum
+        orbital can couple to. Remember that identical nucleons must
+        have different jz values, thus the maximum j_couple value for
+        two protons in a 3/2 orbital is not 3/2 + 3/2, but 3/2 + 1/2.
+
+    max_neutron_j_couple : Union[int, None]
+        The maximum j value two neutrons in the highest angular
+        momentum orbital can couple to. Remember that identical nucleons
+        must have different jz values, thus the maximum j_couple value
+        for two neutronss in a 3/2 orbital is not 3/2 + 3/2, but 3/2 +
+        1/2.
+
+    max_j_couple : Union[int, None]
+        The maximum j value two nucleons (non-identical nucleons if the
+        model space supports it) in the highest angular momentum orbital
+        can couple to. Remember that non-identical nucleons can have the
+        same jz value, thus the maximum j_couple value for two
+        non-identical nucleons in a 3/2 orbital is 3/2 + 3/2.
+
     """
     n: np.ndarray
     l: np.ndarray
@@ -60,6 +81,11 @@ class ModelSpace:
     
     n_orbitals: int
     n_orbital_degeneracy: np.ndarray
+    
+    max_j_couple: Union[int, None] = None
+    max_proton_j_couple: Union[int, None] = None
+    max_neutron_j_couple: Union[int, None] = None
+    
     n_proton_orbitals: Union[int, None] = None
     n_neutron_orbitals: Union[int, None] = None
 
@@ -128,8 +154,18 @@ class Interaction:
 
 @dataclass(slots=True)
 class OperatorJ:
-    one_body: OneBody
-    two_body: TwoBody
+    """
+    Save the treated matrix elements. The raw matrix elements are
+    stored in the Interaction dataclass (.one_body and .two_body).
+
+    Attributes
+    ----------
+    two_body : np.ndarray
+        3D array of indices [j_couple, parity, proton_neutron_idx]. Each
+        entry in the array is a 2D array with reduced matrix elements.
+    """
+    one_body_reduced_matrix_element: np.ndarray # 1D array.
+    two_body_reduced_matrix_element: np.ndarray # 3D array of indices [j_couple, parity, proton_neutron_idx].
 
 @dataclass(slots=True)
 class CouplingIndices:
@@ -153,6 +189,20 @@ class CouplingIndices:
     
     idx : Union[np.ndarray, None]
         The indices of the orbitals that couple to each other.
+
+    idxrev : Union[np.ndarray, None]
+        idx_reverse is organised like this for j = 0, parity =
+        +1 (using usda.snt as an example):
+
+            O1  O2  O3
+        O1  1   0   0
+        O2  0   2   0
+        O3  0   0   3
+
+        meaning that the zero angular momentum coupling only
+        happens within the same orbital and that the coupling
+        between orbital 1 and orbital 1 was counted first,
+        orbital 2 to orbital 2 was counted second, etc.
     """
     n_couplings: Union[int, None] = None
     idx: Union[np.ndarray, None] = None         # 2D integer array.
