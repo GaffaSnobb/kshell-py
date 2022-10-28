@@ -1,7 +1,6 @@
 import math, sys, time
 import numpy as np
-from parameters import flags, debug
-from loaders import read_interaction_file
+from parameters import flags, debug, timing
 from data_structures import (
     ModelSpace, Interaction, OneBody, TwoBody, OperatorJ, CouplingIndices
 )
@@ -74,6 +73,7 @@ def initialise_operator_j_couplings(
     )
 
     initialise_operator_j_couplings_time = time.perf_counter() - initialise_operator_j_couplings_time
+    timing.initialise_operator_j_couplings_time = initialise_operator_j_couplings_time
     if flags.debug:
         print(f"{initialise_operator_j_couplings_time = :.4f} s")
 
@@ -185,7 +185,7 @@ def calculate_couplings(
                     np.max(j_couple[j, parity_idx, proton_neutron_idx].idx_reverse) + 1   # Save the order of which the coupling was counted (se docstring for structure).
 
 def operator_j_scheme(
-    path: str,
+    interaction: Interaction,
     nucleus_mass: int
 ) -> OperatorJ:
     """
@@ -196,15 +196,15 @@ def operator_j_scheme(
 
     Parameters
     ----------
-    path : str
-        Path to interaction file (.snt file).
+    interaction : Interaction
+        Interaction object containing the model space and the raw
+        reduced matrix elements for one- and two-body interactions.
 
     nucleus_mass : int
         Mass number of the nucleus. E.g. 20 for 20Ne.
     """
     n_parities: int = 2
     n_proton_neutron: int = 3
-    interaction: Interaction = read_interaction_file(path=path)
     j_couple: CouplingIndices = initialise_operator_j_couplings(interaction=interaction)
     
     operator_j_scheme_time: float = time.perf_counter()
@@ -353,7 +353,6 @@ def operator_j_scheme(
             """
             msg = "Two-body orbital indices are not valid."
             msg += f" Error in orbital index iteration {i} from interaction file: "
-            msg += f"{path}.\n"
             msg += f"{two_body.orbital_0[i] = }\n"
             msg += f"{two_body.orbital_1[i] = }\n"
             msg += f"{two_body.orbital_2[i] = }\n"
@@ -414,15 +413,8 @@ def operator_j_scheme(
         operator_j.two_body_reduced_matrix_element[two_body.jj[i], two_body.parity[i], proton_neutron_idx][ij_23, ij_01] = m_element_tmp
 
     operator_j_scheme_time = time.perf_counter() - operator_j_scheme_time
+    timing.operator_j_scheme_time = operator_j_scheme_time
     if flags.debug:
         print(f"{operator_j_scheme_time = :.4f} s")
 
     return operator_j
-
-if __name__ == "__main__":
-    flags.debug = True
-    # read_interaction_file(path="usda.snt")
-    operator_j_scheme(
-        path = "../snt/usda.snt",
-        nucleus_mass = 20
-    )
