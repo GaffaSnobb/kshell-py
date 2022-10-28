@@ -20,9 +20,6 @@ def initialise_operator_j_couplings(
     neutron_ms: ModelSpace = interaction.neutron_model_space
     max_j_couple: int = interaction.model_space.max_j_couple
     
-    # max_proton_j_couple = np.max(np.concatenate(proton_ms.jz))
-    # max_neutron_j_couple = np.max(np.concatenate(neutron_ms.jz))
-    # max_j_couple = max(max_proton_j_couple, max_neutron_j_couple) + 1
     j_couple: np.ndarray = np.zeros(
         shape = (max_j_couple, n_parities, n_proton_neutron),
         dtype = CouplingIndices
