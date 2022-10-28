@@ -207,3 +207,19 @@ class CouplingIndices:
     n_couplings: Union[int, None] = None
     idx: Union[np.ndarray, None] = None         # 2D integer array.
     idx_reverse: Union[np.ndarray, None] = None # 2D integer array.
+
+@dataclass(slots=True)
+class Debug:
+    """
+    Values which are stored only for unit testing and debug.
+    """
+    ij_01: Union[np.ndarray, None] = None
+    ij_23: Union[np.ndarray, None] = None
+    proton_neutron_idx: Union[np.ndarray, None] = None
+
+@dataclass(slots=True)
+class Flags:
+    """
+    Package-wide flags.
+    """
+    debug: bool = False
