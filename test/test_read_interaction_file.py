@@ -5,12 +5,14 @@ try:
     Added this try-except to make VSCode understand what is being
     imported.
     """
-    from ..kshell_py.kshell_py import read_interaction_file, initialise_operator_j_couplings, operator_j_scheme
+    from ..kshell_py.kshell_py import initialise_operator_j_couplings, operator_j_scheme
+    from ..kshell_py.loaders import read_interaction_file
     from ..kshell_py.data_structures import Interaction, CouplingIndices, OperatorJ
     from ..kshell_py.parameters import flags, debug
 except ImportError:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'kshell_py')) # Hacky way of using relative imports without installing as a package.
-    from kshell_py import read_interaction_file, initialise_operator_j_couplings, operator_j_scheme
+    from kshell_py import initialise_operator_j_couplings, operator_j_scheme
+    from loaders import read_interaction_file
     from data_structures import Interaction, CouplingIndices, OperatorJ
     from parameters import flags, debug
 
