@@ -1,7 +1,7 @@
 import ast, time
 import numpy as np
 from data_structures import Interaction, ModelSpace, OneBody, TwoBody
-from parameters import flags, debug
+from parameters import flags, debug, timing
 
 def read_interaction_file(
     path: str
@@ -316,6 +316,8 @@ def read_interaction_file(
         debug.proton_neutron_idx = np.zeros(n_twobody_elements, dtype=int)
 
         read_interaction_time = time.perf_counter() - read_interaction_time
+        timing.read_interaction_time = read_interaction_time
+        timing.interaction_name = path.split("/")[-1]
         if flags.debug:
             print(f"{read_interaction_time = :.4f} s")
 
