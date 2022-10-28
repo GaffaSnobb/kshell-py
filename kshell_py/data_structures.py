@@ -223,3 +223,36 @@ class Flags:
     Package-wide flags.
     """
     debug: bool = False
+    timing_summary: bool = False
+
+@dataclass(slots=True)
+class Timing:
+    read_interaction_time: Union[float, None] = None
+    initialise_operator_j_couplings_time: Union[float, None] = None
+    operator_j_scheme_time: Union[float, None] = None
+    interaction_name: Union[str, None] = None
+
+    def __str__(self):
+        total_time = 0
+        msg = f"Timing summary for {self.interaction_name}:\n"
+        for elem in dir(self):
+            if not elem.startswith('__'):
+                elem_time = getattr(self, elem)
+                if isinstance(elem_time, float):
+                    total_time += elem_time
+        
+        for elem in dir(self):
+            if not elem.startswith('__'):
+                elem_time = getattr(self, elem)
+                if isinstance(elem_time, float):
+                    msg += f'{elem:37s}: {elem_time:12.10f} s   ({elem_time/total_time*100:.2f} %)\n'
+        
+        return msg[:-1]
+
+@dataclass(slots=True)
+class Partition:
+    n_protons: int
+    n_neutrons: int
+    parity: int
+    n_proton_configurations: int
+    n_neutron_configurations: int
