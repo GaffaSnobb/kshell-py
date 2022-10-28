@@ -1,4 +1,5 @@
-from data_structures import Debug, Flags
+from data_structures import Debug, Flags, Timing
 
-flags = Flags(debug=False)
-debug = Debug()
+flags: Flags = Flags(debug=False, timing_summary=False)
+timing: Timing = Timing()
+debug: Debug = Debug()
