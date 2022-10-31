@@ -1,6 +1,7 @@
 import ast, time
+from typing import Union
 import numpy as np
-from data_structures import Interaction, ModelSpace, OneBody, TwoBody
+from data_structures import Interaction, ModelSpace, OneBody, TwoBody, Partition
 from parameters import flags, debug, timing
 
 def read_interaction_file(
@@ -322,3 +323,136 @@ def read_interaction_file(
             print(f"{read_interaction_time = :.4f} s")
 
         return interaction
+
+def read_partition_file(path: str) -> Partition:
+    """
+    Read a partition file and store all partition data in a Partition
+    object.
+
+    Parameters
+    ----------
+    path : str
+        Path to the partition file.
+    """
+    read_partition_time: float = time.perf_counter()
+    hw_min: Union[int, None] = None
+    hw_max: Union[int, None] = None
+    n_protons: Union[int, None] = None
+    n_neutrons: Union[int, None] = None
+    parity: Union[int, None] = None
+    n_proton_configurations: Union[int, None] = None
+    n_neutron_configurations: Union[int, None] = None
+    n_proton_neutron_configurations: Union[int, None] = None
+    line_counter: int = 0
+    
+    with open(path, "r") as infile:
+        """
+        Read the metadata of the partition file.
+        """
+        for line in infile:
+            line_counter += 1
+            if "hw" in line:
+                """
+                Example:
+                # hw trucnation,  min hw = 0 ,   max hw = 1
+                """
+                hw_min, hw_max = line.split("=")[1:]
+                hw_min = int(hw_min.split(",")[0])
+                hw_max = int(hw_max)
+            
+            elif "partition file" in line:
+                """
+                Example:
+                # partition file of sdpf-mu.snt  Z=15  N=19  parity=-1
+                15 19 -1
+                """
+                line = infile.readline()
+                line_counter += 1
+                n_protons, n_neutrons, parity = [int(i) for i in line.split()]
+
+            elif "proton partition, neutron partition" in line:
+                """
+                Example:
+                # num. of  proton partition, neutron partition
+                112 332
+                """
+                line = infile.readline()
+                line_counter += 1
+                n_proton_configurations, n_neutron_configurations = [int(i) for i in line.split()]
+
+            elif "proton partition" in line:
+                """
+                Read the line number of where the proton configurations
+                start.
+                """
+                proton_partition_line_start = line_counter
+            
+            elif "partition of proton and neutron" in line:
+                """
+                When this condition is met, all metadata of the
+                partition file has been read. The rest of the file
+                contains the proton and neutron configurations and will
+                be read with np.loadtxt.
+                """
+                line = infile.readline()
+                n_proton_neutron_configurations = int(line)
+                break
+
+            else:
+                continue
+
+        else:
+            msg = "The partition file does not contain the required"
+            msg += " metadata!\n"
+            msg += f"{hw_min = }\n"
+            msg += f"{hw_max = }\n"
+            msg += f"{n_protons = }\n"
+            msg += f"{n_neutrons = }\n"
+            msg += f"{parity = }\n"
+            msg += f"{n_proton_configurations = }\n"
+            msg += f"{n_neutron_configurations = }\n"
+            msg += f"{n_proton_neutron_configurations = }"
+            raise ValueError(msg)
+
+    proton_configurations: np.ndarray = np.loadtxt(
+        fname = path,
+        skiprows = proton_partition_line_start,
+        max_rows = n_proton_configurations,
+        dtype = int
+    )
+
+    neutron_configurations: np.ndarray = np.loadtxt(
+        fname = path,
+        skiprows = proton_partition_line_start + n_proton_configurations,
+        max_rows = n_neutron_configurations,
+        dtype = int
+    )
+
+    proton_neutron_configurations: np.ndarray = np.loadtxt(
+        fname = path,
+        skiprows = proton_partition_line_start + n_proton_configurations + n_neutron_configurations + 3,
+        max_rows = n_proton_neutron_configurations,
+        dtype = int
+    )
+
+    partition: Partition = Partition(
+        n_protons = n_protons,
+        n_neutrons = n_neutrons,
+        n_proton_configurations = n_proton_configurations,
+        n_neutron_configurations = n_neutron_configurations,
+        n_proton_neutron_configurations = n_proton_neutron_configurations,
+        parity = parity,
+        hw_min = hw_min,
+        hw_max = hw_max,
+        proton_configurations = proton_configurations,
+        neutron_configurations = neutron_configurations,
+        proton_neutron_configurations = proton_neutron_configurations
+    )
+
+    read_partition_time = time.perf_counter() - read_partition_time
+    timing.read_partition_time = read_partition_time
+    timing.partition_name = path.split("/")[-1]
+    if flags.debug:
+        print(f"{read_partition_time = :.4f} s")
+
+    return partition
