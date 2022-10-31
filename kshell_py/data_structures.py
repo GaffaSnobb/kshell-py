@@ -228,13 +228,15 @@ class Flags:
 @dataclass(slots=True)
 class Timing:
     read_interaction_time: Union[float, None] = None
+    read_partition_time: Union[float, None] = None
     initialise_operator_j_couplings_time: Union[float, None] = None
     operator_j_scheme_time: Union[float, None] = None
     interaction_name: Union[str, None] = None
+    partition_name: Union[str, None] = None
 
     def __str__(self):
         total_time = 0
-        msg = f"Timing summary for {self.interaction_name}:\n"
+        msg = f"Timing summary for {self.interaction_name}, {self.partition_name}:\n"
         for elem in dir(self):
             if not elem.startswith('__'):
                 elem_time = getattr(self, elem)
@@ -256,3 +258,9 @@ class Partition:
     parity: int
     n_proton_configurations: int
     n_neutron_configurations: int
+    n_proton_neutron_configurations: int
+    proton_configurations: np.ndarray
+    neutron_configurations: np.ndarray
+    proton_neutron_configurations: np.ndarray
+    hw_min: Union[int, None] = None
+    hw_max: Union[int, None] = None
