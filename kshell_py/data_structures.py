@@ -231,6 +231,7 @@ class Timing:
     read_partition_time: Union[float, None] = None
     initialise_operator_j_couplings_time: Union[float, None] = None
     operator_j_scheme_time: Union[float, None] = None
+    initialise_partition_time: Union[float, None] = None
     interaction_name: Union[str, None] = None
     partition_name: Union[str, None] = None
 
@@ -253,6 +254,86 @@ class Timing:
 
 @dataclass(slots=True)
 class Partition:
+    """
+    Attributes
+    ----------
+    n_protons : int
+        The number of valence protons in the model space.
+
+    n_neutrons : int
+        The number of valence neutrons in the model space.
+
+    parity : int
+        The parity of the system (core and valence).
+
+    n_proton_configurations : int
+        The number of proton configurations for the given model space
+        and number of valence protons.
+
+    n_neutron_configurations : int
+        The number of neutron configurations for the given model space
+        and number of valence neutrons.
+
+    n_proton_neutron_configurations : int
+        The number of proton-neutron configurations for the given model
+        space and number of valence protons and neutrons.
+
+    proton_configurations : np.ndarray
+        The proton configurations. Example from Ne20_usda_p.ptn:
+          
+          (idx) (occupation number)
+                (3/2) (5/2) (1/2)
+            1     0     0     2
+            2     0     1     1
+            3     0     2     0
+            4     1     0     1
+            5     1     1     0
+            6     2     0     0
+        
+        Each row is a configuration and each column is an orbital,
+        except the first column which are the indices.
+        proton_configurations is a 2D array with rows and columns
+        just like the example above.
+
+    neutron_configurations : np.ndarray
+        The neutron configurations. 2D array like proton_configurations.
+
+    proton_neutron_configurations : np.ndarray
+        The proton-neutron configurations. Example from Ne20_usda_p.ptn:
+
+            1     1
+            1     2
+            1     3
+            1     4
+            1     5
+            1     6
+            2     1
+            2     2
+            ...
+        
+        Column 0 refers to the proton configuration indices and column
+        1 refers to the neutron configuration indices, hence the first
+        row tells us that the protons are in configuration 1 and the
+        neutrons are in configuration 1. proton_neutron_configurations
+        is a 2D array with rows and columns just like the example above.
+
+    proton_configurations_max_j : np.ndarray
+        The maximum j value all protons in a given configuration can
+        couple to.
+
+    neutron_configurations_max_j : np.ndarray
+        The maximum j value all neutrons in a given configuration can
+        couple to.
+
+    hw_min : Union[int, None]
+        The minimum number of allowed hw excitations. If None, then
+        there is no hw truncation.
+
+    hw_max : Union[int, None]
+        The maximum number of allowed hw excitations. If None, then
+        there is no hw truncation.
+
+    """
     n_protons: int
     n_neutrons: int
     parity: int
@@ -262,5 +343,12 @@ class Partition:
     proton_configurations: np.ndarray
     neutron_configurations: np.ndarray
     proton_neutron_configurations: np.ndarray
+
+    proton_configurations_max_j: np.ndarray
+    neutron_configurations_max_j: np.ndarray
+
+    proton_configurations_parity: np.ndarray
+    neutron_configurations_parity: np.ndarray
+    
     hw_min: Union[int, None] = None
     hw_max: Union[int, None] = None
