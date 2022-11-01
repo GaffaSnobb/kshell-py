@@ -402,6 +402,9 @@ def read_partition_file(path: str) -> Partition:
                 continue
 
         else:
+            """
+            A successful run should break the loop.
+            """
             msg = "The partition file does not contain the required"
             msg += " metadata!\n"
             msg += f"{hw_min = }\n"
@@ -420,6 +423,7 @@ def read_partition_file(path: str) -> Partition:
         max_rows = n_proton_configurations,
         dtype = int
     )
+    proton_configurations[:, 0] -= 1    # Convert to 0-based indexing.
 
     neutron_configurations: np.ndarray = np.loadtxt(
         fname = path,
@@ -427,6 +431,7 @@ def read_partition_file(path: str) -> Partition:
         max_rows = n_neutron_configurations,
         dtype = int
     )
+    neutron_configurations[:, 0] -= 1    # Convert to 0-based indexing.
 
     proton_neutron_configurations: np.ndarray = np.loadtxt(
         fname = path,
@@ -434,6 +439,7 @@ def read_partition_file(path: str) -> Partition:
         max_rows = n_proton_neutron_configurations,
         dtype = int
     )
+    proton_neutron_configurations -= 1    # Convert to 0-based indexing.
 
     partition: Partition = Partition(
         n_protons = n_protons,
@@ -446,7 +452,11 @@ def read_partition_file(path: str) -> Partition:
         hw_max = hw_max,
         proton_configurations = proton_configurations,
         neutron_configurations = neutron_configurations,
-        proton_neutron_configurations = proton_neutron_configurations
+        proton_neutron_configurations = proton_neutron_configurations,
+        proton_configurations_max_j = np.zeros(n_proton_configurations, dtype=int),
+        neutron_configurations_max_j = np.zeros(n_neutron_configurations, dtype=int),
+        proton_configurations_parity = np.zeros(n_proton_configurations, dtype=int),
+        neutron_configurations_parity = np.zeros(n_neutron_configurations, dtype=int),
     )
 
     read_partition_time = time.perf_counter() - read_partition_time
