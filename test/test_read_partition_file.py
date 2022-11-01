@@ -1,4 +1,6 @@
 import sys, os
+from typing import Union
+import numpy as np
 
 try:
     """
@@ -15,9 +17,10 @@ except ImportError:
     from parameters import flags
 
 flags.debug = False
+USDA_PARTITION_FILE_PATH = "../ptn/Ne20_usda_p.ptn"
 
 def test_read_partition_file_usda():
-    partition: Partition = read_partition_file(path="../ptn/Ne20_usda_p.ptn")
+    partition: Partition = read_partition_file(path=USDA_PARTITION_FILE_PATH)
     n_protons_expected: int = 2
     n_neutrons_expected: int = 2
     parity_expected: int = 1
@@ -25,25 +28,25 @@ def test_read_partition_file_usda():
     n_neutron_configurations_expected: int = 6
     n_proton_neutron_configurations_expected: int = 36
 
-    proton_configurations_expected: list[list[int]] = [
+    proton_configurations_expected: np.ndarray = np.array([
         [1, 0, 0, 2],
         [2, 0, 1, 1],
         [3, 0, 2, 0],
         [4, 1, 0, 1],
         [5, 1, 1, 0],
         [6, 2, 0, 0],
-    ]
+    ])
 
-    neutron_configurations_expected: list[list[int]] = [
+    neutron_configurations_expected: np.ndarray = np.array([
         [1, 0, 0, 2],
         [2, 0, 1, 1],
         [3, 0, 2, 0],
         [4, 1, 0, 1],
         [5, 1, 1, 0],
         [6, 2, 0, 0],
-    ]
+    ])
 
-    proton_neutron_configurations_expected: list[list[int]] = [
+    proton_neutron_configurations_expected: np.ndarray = np.array([
         [1, 1],
         [1, 2],
         [1, 3],
@@ -80,7 +83,11 @@ def test_read_partition_file_usda():
         [6, 4],
         [6, 5],
         [6, 6],
-    ]
+    ])
+
+    proton_configurations_expected[:, 0] -= 1
+    neutron_configurations_expected[:, 0] -= 1
+    proton_neutron_configurations_expected -= 1
 
     success = partition.n_protons == n_protons_expected
     msg = f"Incorrect number of protons. Expected {n_protons_expected}, got {partition.n_protons}."
@@ -121,6 +128,106 @@ def test_read_partition_file_usda():
         msg = f"Incorrect proton-neutron configuration. Expected {proton_neutron_configurations_expected[i]}, got {partition.proton_neutron_configurations[i]}."
         assert success, msg
 
+def test_partition_configuration_ordering(
+    path: str = USDA_PARTITION_FILE_PATH,
+    partition: Union[Partition, None] = None,
+):
+    """
+    Does the same as compare_nocc in the Fortran code.
+    https://github.com/GaffaSnobb/kshell/blob/088e6b98d273a4b59d0e2d6d6348ec1012f8780c/src/partition.F90#L972-L990
+
+    Test that the i-1th configuration has at least one orbital with a
+    lower occupation than the ith configuration with the added
+    requirement that the comparison starts at the 0th orbitals of both
+    configurations and that the comparison terminates the first time the
+    condition is met. Perform the test for both proton, neutron and
+    proton-neutron configurations.
+
+    Example from Ne20_usda_p.ptn:
+    # proton partition
+      (idx)  (orb. occupations)
+        1     0  0  2
+        2     0  1  1
+        3     0  2  0
+        4     1  0  1
+        5     1  1  0
+        6     2  0  0
+
+    This function serves as a unit test as well as a sanity check which
+    is run every time a partition is loaded (hence the input arguments).
+    """
+    if partition is None:
+        """
+        Default to the USDA test partition file.
+        """
+        partition: Partition = read_partition_file(path=path)
+        msg_file_info = f" in partition file {path}."
+    else:
+        msg_file_info = "."
+    
+    def compare_configurations(
+        orbital_configurations: np.ndarray,
+        indices: Union[np.ndarray, None],
+        name: str,
+    ):
+
+        if indices is not None:
+            assert len(indices) == len(orbital_configurations), f"Number of indices ({len(indices)}) does not match number of orbital configurations ({len(orbital_configurations)})."
+            assert len(indices) == len(set(indices)), f"Duplicate indices found in {name} configurations."
+            assert all(indices == sorted(indices)), f"Indices in {name} configurations are not sorted."
+
+        for i in range(1, orbital_configurations.shape[0]):
+            """
+            Compare all configurations to each ones neighbour.
+            """
+            for j in range(orbital_configurations.shape[1]):
+                """
+                Loop over each orbitals configuration.
+                """
+                config_0 = orbital_configurations[i - 1][j]
+                config_1 = orbital_configurations[i][j]
+                
+                if config_0 < config_1:
+                    break
+                elif config_0 > config_1:
+                    """
+                    If this condition is met before config_0 < config_1,
+                    then the configurations are not ordered correctly.
+                    """
+                    msg = f"{name} configuration {i} is incorrectly ordered for orbital {j}"
+                    msg += msg_file_info
+                    msg += f" Got {orbital_configurations[i - 1]} and {orbital_configurations[i]}."
+                    assert False, msg
+                else:
+                    """
+                    If the configurations are equal, go to the next orbital.
+                    """
+                    continue
+            else:
+                """
+                If the loop completes without breaking, then the
+                configurations are all equal, which is not allowed.
+                """
+                msg = f"{name} configuration {i} is incorrectly ordered"
+                msg += msg_file_info
+                assert False, msg
+
+    compare_configurations(
+        orbital_configurations = partition.proton_configurations[:, 1:],
+        indices = partition.proton_configurations[:, 0],
+        name = "Proton",
+    )
+    compare_configurations(
+        orbital_configurations = partition.neutron_configurations[:, 1:],
+        indices = partition.neutron_configurations[:, 0],
+        name = "Neutron",
+    )
+    compare_configurations(
+        orbital_configurations = partition.proton_neutron_configurations,
+        indices = None,
+        name = "Proton-neutron",
+    )
+
 def test_read_partition_file_sdpfmu():
     partition: Partition = read_partition_file(path="../ptn/V50_sdpf-mu_n.ptn")
     n_protons_expected: int = 15
@@ -130,7 +237,7 @@ def test_read_partition_file_sdpfmu():
     n_neutron_configurations_expected: int = 332
     n_proton_neutron_configurations_expected: int = 11784
 
-    proton_configurations_expected: list[list[int]] = [
+    proton_configurations_expected: np.ndarray = np.array([
         [1, 5, 4, 2, 0, 0, 2, 2],
         [2, 5, 4, 2, 0, 0, 3, 1],
         [3, 5, 4, 2, 0, 0, 4, 0],
@@ -243,9 +350,9 @@ def test_read_partition_file_sdpfmu():
         [110, 6, 4, 2, 2, 0, 1, 0],
         [111, 6, 4, 2, 2, 1, 0, 0],
         [112, 6, 4, 2, 3, 0, 0, 0],
-    ]
+    ])
 
-    neutron_configurations_expected: list[list[int]] = [
+    neutron_configurations_expected: np.ndarray = np.array([
         [1, 5, 4, 2, 0, 2, 4, 2],
         [2, 5, 4, 2, 0, 3, 3, 2],
         [3, 5, 4, 2, 0, 3, 4, 1],
@@ -578,9 +685,9 @@ def test_read_partition_file_sdpfmu():
         [330, 6, 4, 2, 6, 0, 1, 0],
         [331, 6, 4, 2, 6, 1, 0, 0],
         [332, 6, 4, 2, 7, 0, 0, 0],
-    ]
+    ])
 
-    proton_neutron_configurations_expected: list[list[int]] = [
+    proton_neutron_configurations_expected: np.ndarray = np.array([
         [1, 259],
         [1, 260],
         [1, 261],
@@ -12365,7 +12472,11 @@ def test_read_partition_file_sdpfmu():
         [112, 256],
         [112, 257],
         [112, 258],
-    ]
+    ])
+
+    proton_configurations_expected[:, 0] -= 1
+    neutron_configurations_expected[:, 0] -= 1
+    proton_neutron_configurations_expected -= 1
 
     success = partition.n_protons == n_protons_expected
     msg = f"Incorrect number of protons. Expected {n_protons_expected}, got {partition.n_protons}."
@@ -12409,3 +12520,4 @@ def test_read_partition_file_sdpfmu():
 if __name__ == "__main__":
     test_read_partition_file_usda()
     test_read_partition_file_sdpfmu()
+    test_partition_configuration_ordering()
