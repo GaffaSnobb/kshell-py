@@ -457,6 +457,8 @@ def read_partition_file(path: str) -> Partition:
         neutron_configurations_max_j = np.zeros(n_neutron_configurations, dtype=int),
         proton_configurations_parity = np.zeros(n_proton_configurations, dtype=int),
         neutron_configurations_parity = np.zeros(n_neutron_configurations, dtype=int),
+        proton_configurations_jz = np.zeros(n_proton_configurations, dtype=np.ndarray),
+        neutron_configurations_jz = np.zeros(n_neutron_configurations, dtype=np.ndarray),
     )
 
     read_partition_time = time.perf_counter() - read_partition_time
