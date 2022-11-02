@@ -1,5 +1,5 @@
 import sys, os
-
+import numpy as np
 try:
     """
     Added this try-except to make VSCode understand what is being
@@ -122,8 +122,52 @@ def test_configuration_parity_sdpfmu_negative():
         msg = f"The parity for neutron configuration {i} is not correct. Expected {neutron_configurations_parity_expected[i]}, got {partition.neutron_configurations_parity[i]}."
         assert success, msg
 
+def test_jz():
+    interaction: Interaction = read_interaction_file(path=INTERACTION_FILE_PATH_USDA)
+    partition: Partition = initialise_partition(
+        path = PARTITION_FILE_PATH_USDA,
+        interaction = interaction
+    )
+
+    partition.proton_configurations_jz
+
+    proton_configurations_jz_expected: np.ndarray = np.array(
+        object = [
+            np.arange(0, 0+1, 1),
+            np.arange(-6, 6+1, 1),
+            np.arange(-8, 8+1, 1),
+            np.arange(-4, 4+1, 1),
+            np.arange(-8, 8+1, 1),
+            np.arange(-4, 4+1, 1)
+        ],
+        dtype = np.ndarray
+    )
+
+    neutron_configurations_jz_expected: np.ndarray = np.array(
+        object = [
+            np.arange(0, 0+1, 1),
+            np.arange(-6, 6+1, 1),
+            np.arange(-8, 8+1, 1),
+            np.arange(-4, 4+1, 1),
+            np.arange(-8, 8+1, 1),
+            np.arange(-4, 4+1, 1)
+        ],
+        dtype = np.ndarray
+    )
+
+    for i in range(len(proton_configurations_jz_expected)):
+        success = np.array_equal(partition.proton_configurations_jz[i], proton_configurations_jz_expected[i])
+        msg = f"The jz for proton configuration {i} is not correct. Expected {proton_configurations_jz_expected[i]}, got {partition.proton_configurations_jz[i]}."
+        assert success, msg
+
+    for i in range(len(neutron_configurations_jz_expected)):
+        success = np.array_equal(partition.neutron_configurations_jz[i], neutron_configurations_jz_expected[i])
+        msg = f"The jz for neutron configuration {i} is not correct. Expected {neutron_configurations_jz_expected[i]}, got {partition.neutron_configurations_jz[i]}."
+        assert success, msg
+
 if __name__ == '__main__':
     test_max_j_value_per_configuration()
     test_configuration_parity_usda()
     test_configuration_parity_sdpfmu_positive()
     test_configuration_parity_sdpfmu_negative()
+    test_jz()
