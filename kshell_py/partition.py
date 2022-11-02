@@ -36,38 +36,103 @@ def initialise_partition(
         Partition object containing the partition data.
     """
     partition: Partition = read_partition_file(path=path)
+
+    if (partition.n_protons + partition.n_neutrons)%2 == 0:
+        """
+        There is an even number of nucleons in the nucleus. I think this
+        is the m value of the basis states. NOTE: Improve this name when
+        I understand what it is.
+        """
+        partition.m_tot = 0
+    else:
+        """
+        There is an odd number of nucleons in the nucleus. I think this
+        is the m value of the basis states. Remember that this value is
+        multiplied by 2 to avoid fractions.
+        """
+        partition.m_tot = 1
     
     initialise_partition_time: float = time.perf_counter()
     test_partition_configuration_ordering(partition=partition)
 
     partition.proton_configurations_max_j[:] = calculate_max_j_per_configuration(
-        configurations = partition.proton_configurations[:, 1:], # Remove index column.
+        configurations = partition.proton_configurations[:, 1:],    # Remove index column.
         j_orbitals = interaction.proton_model_space.j
     )
     partition.neutron_configurations_max_j[:] = calculate_max_j_per_configuration(
-        configurations = partition.neutron_configurations[:, 1:], # Remove index column.
+        configurations = partition.neutron_configurations[:, 1:],   # Remove index column.
         j_orbitals = interaction.neutron_model_space.j
     )
     partition.proton_configurations_parity[:] = calculate_configuration_parity(
-        configurations = partition.proton_configurations[:, 1:],
+        configurations = partition.proton_configurations[:, 1:],    # Remove index column.
         model_space = interaction.proton_model_space
     )
     partition.neutron_configurations_parity[:] = calculate_configuration_parity(
-        configurations = partition.neutron_configurations[:, 1:],
+        configurations = partition.neutron_configurations[:, 1:],   # Remove index column.
         model_space = interaction.neutron_model_space
     )
-    
-    k: int = 0  # Get a better name.
+
+    for i in range(partition.n_proton_configurations):
+        """
+        Initialise min_m and max_m for protons.
+        """
+        partition.proton_configurations_min_max[i, 0] = partition.proton_configurations_max_j[i]
+        partition.proton_configurations_min_max[i, 1] = -partition.proton_configurations_max_j[i]
+
+    for i in range(partition.n_neutron_configurations):
+        """
+        Initialise min_m and max_m for neutrons.
+        """
+        partition.neutron_configurations_min_max[i, 0] = partition.neutron_configurations_max_j[i]
+        partition.neutron_configurations_min_max[i, 1] = -partition.neutron_configurations_max_j[i]
+
+    partition.max_proton_neutron_couple_j = 0  # The maximum possible angular momentum of the system.
     for i in range(partition.n_proton_neutron_configurations):
-        proton_configuration_idx: int = partition.proton_neutron_configurations[i, 0]
-        neutron_configuration_idx: int = partition.proton_neutron_configurations[i, 1]
+        """
+        Loop over proton-neutron configurations. NOTE: I do not know
+        what the min_max values are for yet. If the final min value is
+        always -max, then why bother storing / calcuating both?
 
-        proton_configuration_max_j: int = partition.proton_configurations_max_j[proton_configuration_idx]
-        neutron_configuration_max_j: int = partition.neutron_configurations_max_j[neutron_configuration_idx]
+        In this loop, the maximum possible angular momentum of all
+        proton-neutron configurations is calculated.
+        """
+        proton_idx: int = partition.proton_neutron_configurations[i, 0]
+        neutron_idx: int = partition.proton_neutron_configurations[i, 1]
 
-        k = max(proton_configuration_max_j + neutron_configuration_max_j, k)
+        proton_max_j: int = partition.proton_configurations_max_j[proton_idx]
+        neutron_max_j: int = partition.neutron_configurations_max_j[neutron_idx]
 
-        
+        partition.max_proton_neutron_couple_j = max(  # Find the combination of proton-neutron configurations with the largest angular momentum.
+            proton_max_j + neutron_max_j, partition.max_proton_neutron_couple_j
+        )
+        partition.proton_configurations_min_max[proton_idx, 0] = min(
+            partition.proton_configurations_min_max[proton_idx, 0],
+            partition.m_tot - neutron_max_j
+        )
+        partition.neutron_configurations_min_max[neutron_idx, 0] = min(
+            partition.neutron_configurations_min_max[neutron_idx, 0],
+            partition.m_tot - proton_max_j
+        )
+        partition.proton_configurations_min_max[proton_idx, 1] = max(
+            partition.proton_configurations_min_max[proton_idx, 1],
+            partition.m_tot + neutron_max_j
+        )
+        partition.neutron_configurations_min_max[neutron_idx, 1] = max(
+            partition.neutron_configurations_min_max[neutron_idx, 1],
+            partition.m_tot + proton_max_j
+        )
+
+    print(interaction.proton_model_space.j)
+    print(partition.proton_configurations[:, 1:])
+    print(partition.proton_configurations_max_j)
+    
+    # for i in range(partition.n_proton_configurations):
+    #     mi = max(-partition.proton_configurations_max_j[i], partition.proton_configurations_min_max[i, 0])
+    #     mj = min( partition.proton_configurations_max_j[i], partition.proton_configurations_min_max[i, 1])
+
+    #     print(f"{mi = }")
+    #     print(f"{partition.proton_configurations_min_max[i] = }")
+
 
     initialise_partition_time = time.perf_counter() - initialise_partition_time
     timing.initialise_partition_time = initialise_partition_time
