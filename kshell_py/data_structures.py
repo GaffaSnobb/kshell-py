@@ -232,6 +232,8 @@ class Timing:
     initialise_operator_j_couplings_time: Union[float, None] = None
     operator_j_scheme_time: Union[float, None] = None
     initialise_partition_time: Union[float, None] = None
+    initialise_m_scheme_bit_representation_time: Union[float, None] = None
+    
     interaction_name: Union[str, None] = None
     partition_name: Union[str, None] = None
 
@@ -342,13 +344,32 @@ class Partition:
     n_proton_neutron_configurations: int
     proton_configurations: np.ndarray
     neutron_configurations: np.ndarray
+    
     proton_neutron_configurations: np.ndarray
 
     proton_configurations_max_j: np.ndarray
     neutron_configurations_max_j: np.ndarray
 
+    proton_configurations_jz: np.ndarray
+    neutron_configurations_jz: np.ndarray
+
     proton_configurations_parity: np.ndarray
     neutron_configurations_parity: np.ndarray
-    
+
+    max_proton_neutron_couple_j: Union[int, None] = None
+    m_tot: Union[int, None] = None
     hw_min: Union[int, None] = None
     hw_max: Union[int, None] = None
+
+@dataclass(slots=True)
+class BitRepresentation:
+    """
+    type type_m_mbit 
+        integer :: n 
+        integer(kmbit), allocatable :: mbit(:)
+        integer, allocatable :: mm(:)
+    end type type_m_mbit
+    """
+    n: int
+    mbit: Union[np.ndarray, None] = None
+    mm: Union[np.ndarray, None] = None
