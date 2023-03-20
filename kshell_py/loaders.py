@@ -250,12 +250,14 @@ def read_interaction_file(
         model_space.max_proton_j_couple = max_proton_j_couple
         model_space.max_neutron_j_couple = max_neutron_j_couple
         model_space.max_j_couple = max_j_couple
+        model_space.jz_concatenated = np.concatenate(model_space.jz)
 
         proton_model_space: ModelSpace = ModelSpace(
             n = model_space.n[:model_space.n_proton_orbitals],
             l = model_space.l[:model_space.n_proton_orbitals],
             j = model_space.j[:model_space.n_proton_orbitals],
             jz = model_space.jz[:model_space.n_proton_orbitals],
+            jz_concatenated = np.concatenate(model_space.jz[:model_space.n_proton_orbitals]),
             isospin = model_space.isospin[:model_space.n_proton_orbitals], 
             parity = model_space.parity[:model_space.n_proton_orbitals],
             n_orbitals = model_space.n_proton_orbitals,
@@ -268,6 +270,7 @@ def read_interaction_file(
             l = model_space.l[model_space.n_proton_orbitals:],
             j = model_space.j[model_space.n_proton_orbitals:],
             jz = model_space.jz[model_space.n_proton_orbitals:],
+            jz_concatenated = np.concatenate(model_space.jz[model_space.n_proton_orbitals:]),
             isospin = model_space.isospin[model_space.n_proton_orbitals:],
             parity = model_space.parity[model_space.n_proton_orbitals:],
             n_orbitals = model_space.n_neutron_orbitals,
@@ -424,12 +427,11 @@ def read_partition_file(path: str) -> Partition:
         dtype = int
     )
     proton_configurations[:, 0] -= 1    # Convert to 0-based indexing.
-
     neutron_configurations: np.ndarray = np.loadtxt(
         fname = path,
-        skiprows = proton_partition_line_start + n_proton_configurations,
+        skiprows = proton_partition_line_start + n_proton_configurations + 1, # +1 to skip the comment before the neutron configuration.
         max_rows = n_neutron_configurations,
-        dtype = int
+        dtype = int,
     )
     neutron_configurations[:, 0] -= 1    # Convert to 0-based indexing.
 
