@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Any
 from dataclasses import dataclass
 import numpy as np
 
@@ -82,6 +82,7 @@ class ModelSpace:
     n_orbitals: int
     n_orbital_degeneracy: np.ndarray
     
+    jz_concatenated: Union[np.ndarray, None] = None # Needed for calculating m-scheme bit representations.
     max_j_couple: Union[int, None] = None
     max_proton_j_couple: Union[int, None] = None
     max_neutron_j_couple: Union[int, None] = None
@@ -232,7 +233,8 @@ class Timing:
     initialise_operator_j_couplings_time: Union[float, None] = None
     operator_j_scheme_time: Union[float, None] = None
     initialise_partition_time: Union[float, None] = None
-    initialise_m_scheme_bit_representation_time: Union[float, None] = None
+    calculate_m_scheme_bit_representation_time_protons: Union[float, None] = None
+    calculate_m_scheme_bit_representation_time_neutrons: Union[float, None] = None
     
     interaction_name: Union[str, None] = None
     partition_name: Union[str, None] = None
@@ -253,6 +255,26 @@ class Timing:
                     msg += f'{elem:37s}: {elem_time:12.10f} s   ({elem_time/total_time*100:.2f} %)\n'
         
         return msg[:-1]
+
+@dataclass(slots=True)
+class BitRepresentation:
+    """
+    type type_m_mbit 
+        integer :: n 
+        integer(kmbit), allocatable :: mbit(:)
+        integer, allocatable :: mm(:)
+    end type type_m_mbit
+    """
+    n: int
+    mbit: np.ndarray | None = None
+    mm: np.ndarray | None = None
+
+    # def __str__(self):
+    #     msg = f"n = {self.n}\n"
+    #     msg += f"mbit = {self.mbit}\n"
+    #     msg += f"mbit (bits) = {[f'{i:b}' for i in self.mbit]}\n"
+    #     msg += f"mm = {self.mm}"
+    #     return msg
 
 @dataclass(slots=True)
 class Partition:
@@ -356,20 +378,9 @@ class Partition:
     proton_configurations_parity: np.ndarray
     neutron_configurations_parity: np.ndarray
 
-    max_proton_neutron_couple_j: Union[int, None] = None
-    m_tot: Union[int, None] = None
-    hw_min: Union[int, None] = None
-    hw_max: Union[int, None] = None
-
-@dataclass(slots=True)
-class BitRepresentation:
-    """
-    type type_m_mbit 
-        integer :: n 
-        integer(kmbit), allocatable :: mbit(:)
-        integer, allocatable :: mm(:)
-    end type type_m_mbit
-    """
-    n: int
-    mbit: Union[np.ndarray, None] = None
-    mm: Union[np.ndarray, None] = None
+    max_proton_neutron_couple_j: int | None = None
+    m_tot: int | None = None
+    hw_min: int | None = None
+    hw_max: int | None = None
+    
+    mbit_orb: np.ndarray[BitRepresentation] | None = None
