@@ -20,7 +20,7 @@ except ImportError:
 def initialise_partition(
     path: str,
     interaction: Interaction
-):
+) -> Partition:
     """
     Parameters
     ----------
@@ -71,7 +71,6 @@ def initialise_partition(
         configurations = partition.neutron_configurations[:, 1:],   # Remove index column.
         model_space = interaction.neutron_model_space
     )
-
     partition.max_proton_neutron_couple_j = 0  # The maximum possible angular momentum of the system ('max_jj' in the Fortran code).
     for i in range(partition.n_proton_neutron_configurations):
         """
@@ -115,32 +114,7 @@ def initialise_partition(
             step = 1
         )
 
-    initialise_m_scheme_bit_representation(
-        interaction = interaction,
-        partition = partition,
-    )
-
-    initialise_partition_time = time.perf_counter() - initialise_partition_time
-    timing.initialise_partition_time = initialise_partition_time
-    if flags.debug:
-        print(f"initialise_partition_time: {initialise_partition_time:.4f} s")
-
-    return partition
-
-def initialise_m_scheme_bit_representation(
-    interaction: Interaction,
-    partition: Partition
-):
-    """
-    type type_m_mbit 
-        integer :: n 
-        integer(kmbit), allocatable :: mbit(:)
-        integer, allocatable :: mm(:)
-    end type type_m_mbit
-    """
-    initialise_m_scheme_bit_representation_time: float = time.perf_counter()
-
-    mbit_orb: np.ndarray = np.zeros(
+    partition.mbit_orb: np.ndarray = np.zeros(
         shape = (
             max(interaction.model_space.n_proton_orbitals, interaction.model_space.n_neutron_orbitals),
             max(partition.n_protons, partition.n_neutrons) + 1,
@@ -148,27 +122,79 @@ def initialise_m_scheme_bit_representation(
         ),
         dtype = BitRepresentation
     )
-
-    for i in range(mbit_orb.shape[0]):
+    for i in range(partition.mbit_orb.shape[0]):
         """
         Initialise all elements in mbit_orb.
         """
-        for j in range(mbit_orb.shape[1]):
-            for k in range(mbit_orb.shape[2]):
-                mbit_orb[i, j, k] = BitRepresentation(n=0)
+        for j in range(partition.mbit_orb.shape[1]):
+            for k in range(partition.mbit_orb.shape[2]):
+                partition.mbit_orb[i, j, k] = BitRepresentation(n=0)
+
+    calculate_m_scheme_bit_representation(
+        model_space = interaction.proton_model_space,
+        n_valence_nucleons = partition.n_protons,
+        mbit_orb = partition.mbit_orb,
+        proton_neutron_idx = 0
+    )
+
+    calculate_m_scheme_bit_representation(
+        model_space = interaction.neutron_model_space,
+        n_valence_nucleons = partition.n_neutrons,
+        mbit_orb = partition.mbit_orb,
+        proton_neutron_idx = 1
+    )
+    initialise_partition_time = time.perf_counter() - initialise_partition_time
+    timing.initialise_partition_time = initialise_partition_time
+    if flags.debug:
+        print(f"initialise_partition_time: {initialise_partition_time:.4f} s")
+
+    return partition
+
+def calculate_m_scheme_bit_representation(
+    model_space: ModelSpace,
+    n_valence_nucleons: int,
+    mbit_orb: np.ndarray,
+    proton_neutron_idx: int,
+) -> None:
+    """
+    Parameters
+    ----------
+    model_space : ModelSpace
+        The model space of the valence protons or neutrons.
+
+    n_valence_nucleons : int
+        The number of valence protons or neutrons.
+
+    mbit_orb : np.ndarray
+        3D array containing n, mm, and mbit arrays.
+
+    proton_neutron_idx : int
+        0 if proton, 1 if neutron. For indexing mbit_orb.
+
+    type type_m_mbit 
+        integer :: n 
+        integer(kmbit), allocatable :: mbit(:)
+        integer, allocatable :: mm(:)
+    end type type_m_mbit
+    """
+    calculate_m_scheme_bit_representation_time: float = time.perf_counter()
 
     for loop in range(2):
         """
-        get rid of this stupid loop
-        """
+        get rid of this stupid loop...
 
+        This loop makes sure that the bit representation calculations
+        are performed twice. When loop == 0, the mbit and mm arrays are
+        initialised to the correct lengths. When loop == 1, all the
+        countings (n) from the previous loop are re-done and the values
+        are put into the now initialised mbit and mm arrays.
+        """
         for i in range(mbit_orb.shape[0]):
             for j in range(mbit_orb.shape[1]):
-                for k in range(mbit_orb.shape[2]):
-                    mbit_orb[i, j, k].n = 0
+                mbit_orb[i, j, proton_neutron_idx].n = 0
 
-        for orbital_idx in range(interaction.proton_model_space.n_orbitals):
-            for mm in range(2**(interaction.proton_model_space.j[orbital_idx] + 1) - 1 + 1):
+        for orbital_idx in range(mbit_orb.shape[0]):
+            for mm in range(2**(model_space.j[orbital_idx] + 1) - 1 + 1):
                 """
                 Calculate the population count (popcnt, bit count) of mm. If
                 the popcnt of mm is <= the number of valence protons
@@ -192,10 +218,9 @@ def initialise_m_scheme_bit_representation(
                 index every time, mind you).
                 
                 """
-                # print(f"{mm = }")
                 popcnt = mm.bit_count()  # Count the number of bits which are set to 1.
 
-                if popcnt > partition.n_protons:
+                if popcnt > n_valence_nucleons:
                     """
                     When the number of bits set to 1 in mm is greater than
                     the number of valence protons... Why should this happen?
@@ -205,16 +230,16 @@ def initialise_m_scheme_bit_representation(
                     """
                     continue
 
-                mbit_orb[orbital_idx, popcnt, 0].n += 1
+                mbit_orb[orbital_idx, popcnt, proton_neutron_idx].n += 1
                 
                 if loop == 1:
-                    n_tmp: int = mbit_orb[orbital_idx, popcnt, 0].n - 1  # Think I have to subtract 1 to get 0-based indexing.
+                    n_tmp: int = mbit_orb[orbital_idx, popcnt, proton_neutron_idx].n - 1  # Think I have to subtract 1 to get 0-based indexing.
                     if n_tmp == -1:
                         msg = "n_tmp should not be -1!"
                         raise RuntimeError(msg)
 
                     try:
-                        mbit_orb[orbital_idx, popcnt, 0].mbit[n_tmp] = mm
+                        mbit_orb[orbital_idx, popcnt, proton_neutron_idx].mbit[n_tmp] = mm
                     except IndexError as e:
                         print(f"{orbital_idx = }")
                         print(f"{popcnt = }")
@@ -222,35 +247,84 @@ def initialise_m_scheme_bit_representation(
                         print(f"{n_tmp = }")
                         raise(e)
 
-        if loop == 1: continue
+        if loop == 1:
+            """
+            This continue could just as well have been a break since
+            loop will only be 0 and 1. Makes sure that the
+            initialisations of mbit and mm doesnt happen twice.
+            """
+            continue
         
-        for orbital_idx in range(interaction.proton_model_space.n_orbitals):
-            for nucleon_idx in range(partition.n_protons + 1):
+        for orbital_idx in range(mbit_orb.shape[0]):
+            """
+            Initialise the mbit and mm arrays.
+            """
+            for nucleon_idx in range(mbit_orb.shape[1]):
                 
-                n_tmp: int = mbit_orb[orbital_idx, nucleon_idx, 0].n
-                if n_tmp == 0:
-                    msg = "n_tmp should not be zero!"
-                    raise RuntimeError(msg)
+                n_tmp: int = mbit_orb[orbital_idx, nucleon_idx, proton_neutron_idx].n
+                # if n_tmp == 0:
+                #     print(f"{orbital_idx = }")
+                #     print(f"{nucleon_idx = }")
+                #     msg = "n_tmp should not be zero!"
+                #     raise RuntimeError(msg)
                 
-                mbit_orb[orbital_idx, nucleon_idx, 0].mbit = np.zeros(
+                mbit_orb[orbital_idx, nucleon_idx, proton_neutron_idx].mbit = np.zeros(
                     shape = n_tmp,
                     dtype = int
                 )
-                mbit_orb[orbital_idx, nucleon_idx, 0].mm = np.zeros(
+                mbit_orb[orbital_idx, nucleon_idx, proton_neutron_idx].mm = np.zeros(
                     shape = n_tmp,
                     dtype = int
                 )
     
-    for i in range(mbit_orb.shape[0]):
-        for j in range(mbit_orb.shape[1]):
-            for k in range(mbit_orb.shape[2]):
-                print(mbit_orb[i, j, k].n)
+    # End loop loop.
+    bit_shifts = 1
+    for orbital_idx in range(model_space.n_orbitals):
+        """
+        Theres some bit-shifting going on here... And I dont like it!!
+        (jk, just dont know how it works yet)
+        """
+        for nucleon_idx in range(n_valence_nucleons + 1):
+            mbit_orb[orbital_idx, nucleon_idx, proton_neutron_idx].mbit <<= bit_shifts
+        
+        bit_shifts += model_space.j[orbital_idx] + 1
 
-    initialise_m_scheme_bit_representation_time = time.perf_counter() - initialise_m_scheme_bit_representation_time
-    timing.initialise_m_scheme_bit_representation_time = initialise_m_scheme_bit_representation_time
+    for orbital_idx in range(model_space.n_orbitals):
+        for nucleon_idx in range(n_valence_nucleons + 1):
+            print("nucleon_idx (loop)", nucleon_idx)
+            print(f"mbit_orb[k, n, ipn].n = {mbit_orb[orbital_idx, nucleon_idx, proton_neutron_idx].n}")
+            for n in range(mbit_orb[orbital_idx, nucleon_idx, proton_neutron_idx].n):
+                print("nucleon_idx (probe)", nucleon_idx)
+                
+                mz = 0  # Find a better name when you understand what it is.
+                for jz_idx in range(model_space.jz_concatenated.shape[0]):
+                    
+                    mbit_tmp = mbit_orb[orbital_idx, nucleon_idx, proton_neutron_idx].mbit[n]
+                    if mbit_tmp & (1 << (jz_idx + 1)):
+                        """
+                        Check if bit number 'jz_idx + 1' in bit_tmp is set
+                        or not.
+                        """
+                        mz += model_space.jz_concatenated[jz_idx]
+                
+                mbit_orb[orbital_idx, nucleon_idx, proton_neutron_idx].mm[n] = mz
+                if (nucleon_idx == 6) or (nucleon_idx == 7):
+                    print("nucleon_idx (loop)", nucleon_idx)
+                    print(f"{n_valence_nucleons = }")
+                    print(f"mbit_orb[k, n, ipn].mm = {mbit_orb[orbital_idx, nucleon_idx, proton_neutron_idx].mm}")
+                    print(f"{mbit_orb[orbital_idx, 6, proton_neutron_idx].mm = }")
+                    print(f"{mbit_orb[orbital_idx, 7, proton_neutron_idx].mm = }")
+        # sys.exit()
+
+    calculate_m_scheme_bit_representation_time = time.perf_counter() - calculate_m_scheme_bit_representation_time
+
+    if proton_neutron_idx == 0:
+        timing.calculate_m_scheme_bit_representation_time_protons = calculate_m_scheme_bit_representation_time
+    elif proton_neutron_idx == 1:
+        timing.calculate_m_scheme_bit_representation_time_neutrons = calculate_m_scheme_bit_representation_time
+    
     if flags.debug:
-        print(f"initialise_m_scheme_bit_representation_time: {initialise_m_scheme_bit_representation_time:.4f} s")
-
+        print(f"calculate_m_scheme_bit_representation_time ({'protons' if proton_neutron_idx == 0 else 'neutrons'}): {calculate_m_scheme_bit_representation_time:.4f} s")
 
 def calculate_configuration_parity(
     configurations: np.ndarray,
@@ -298,7 +372,7 @@ def calculate_max_j_per_configuration(
     
     Configuration 1 has 2 protons in s1/2. s1/2 has a degeneracy of 2,
     meaning that the only possibility is jz = +- 1/2 and the max j value
-    they can couple to is 0. Configuration 1 however, occupies d5/2 and
+    they can couple to is 0. Configuration 2 however, occupies d5/2 and
     s1/2 meaning that the max j value is 5/2 + 1/2 = 6/2. Configuration
     3, like configuration 1, has both protons in the same orbital, but
     since d5/2 has a degeneracy of 6 and since protons are fermions, the
