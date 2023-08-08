@@ -47,12 +47,47 @@ def O18_w_manual_hamiltonian() -> np.ndarray[Any, float]:
 
 def fill_orbitals(
     orbitals: list[OrbitalParameters],
+    orbital_occupation: list[tuple[int]],
+    current_orbital_occupation: list[int],
     n_remaining_neutrons: int,
     n_remaining_holes: int,
     current_orbital_idx: int,
-    orbital_occupation: list[tuple[int]],
-    current_orbital_occupation: list[int],
 ):
+    """
+    Fill all the orbitals in the given model space with all possible
+    combinations of occupations. Account for the orbitals' degeneracies.
+
+    To account for a variable number of orbitals, this function will
+    call itself recursively and for each call proceeding to the next
+    orbital in the model space. For each call, the function loops over
+    all possible numbers of occupation, accounting for the current
+    orbital degeneracy and the number of remaining nucleons.
+
+    Example
+    -------
+    Assume a model space of orbitals = [d5/2, d3/2].
+
+    for occupation in [0, ..., d5/2 max allowed occupation]:
+        store the current d5/2 occupation
+    --- call fill_orbitals, excluding d5/2 in the list 'orbitals'
+    |
+    |
+    --> for occupation in [0, ..., d3/2 max allowed occupation]:
+        store the current d3/2 occupation
+    --- call fill_orbitals, excluding d3/2 in the list 'orbitals'
+    |
+    |
+    --> The function returns early because there are no orbitals left.
+        If there are no nucleons left, 'current_orbital_occupation' is
+        saved to 'orbital_occupation'. If there are nucleons left, the
+        current orbital occupation is not stored and the occupation
+        iteration in the previous recursive call is continued.
+
+    Parameters
+    ----------
+    orbitals:
+
+    """
     if n_remaining_neutrons == 0:
         """
         No more neutrons to place, aka a complete configuration.
