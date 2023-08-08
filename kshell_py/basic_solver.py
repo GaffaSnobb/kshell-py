@@ -86,13 +86,33 @@ def fill_orbitals(
     Parameters
     ----------
     orbitals:
+        List of the remaining orbitals in the model space.
+        OrbitalParameters contains various parameters for the orbitals.
 
+    orbital_occupation:
+        A list for storing the valid configurations.
+
+    current_orbital_occupation:
+        Storage for the current occupation. Will be copied to
+        orbital_occupation if it is valid.
+
+    n_remaining_neutrons:
+        The remaining number of nucleons to place into the remaining
+        orbitals.
+    
+    n_remaining_holes:
+        The remaining free places to put the remaining nucleons.
+    
+    current_orbital_idx:
+        The index of the current orbital for the
+        current_orbital_occupation list. Is incremented +1 for every
+        recursive function call.
     """
     if n_remaining_neutrons == 0:
         """
         No more neutrons to place, aka a complete configuration.
         """
-        orbital_occupation.append(tuple(current_orbital_occupation))
+        orbital_occupation.append(tuple(current_orbital_occupation))    # tuple conversion was marginally faster than list.copy().
         return
 
     if not orbitals:
