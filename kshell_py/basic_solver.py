@@ -2,16 +2,23 @@ from typing import Any
 import numpy as np
 import numpy.linalg as lalg
 import kshell_utilities as ksutil
-from kshell_utilities.data_structures import Interaction, Partition
+from kshell_utilities.data_structures import (
+    Interaction, Partition, OrbitalParameters
+)
 from kshell_utilities.loaders import load_interaction, load_partition
 
 def O18_w_manual_hamiltonian() -> np.ndarray[Any, float]:
     """
     Manual construction of the shell model hamiltonian for 18O (2
-    valence protons) with the w interaction.
+    valence neutrons) with the w interaction.
+
+    TODO: I made thisn function thinking there were two valence protons
+    while it it actually valence neutrons. It still works because the
+    interaction and model space treats the protons and neutrons the same
+    in this case, but it should be changed so that it is correct.
     """
-    O18 = ksutil.loadtxt(path="tmp_delete/")
-    interaction: Interaction = load_interaction(filename_interaction="tmp_delete/w.snt")
+    O18 = ksutil.loadtxt(path="O18_w/")
+    interaction: Interaction = load_interaction(filename_interaction="O18_w/w.snt")
     spe = interaction.spe
 
     def tbme(a, b, c, d, j):
@@ -38,36 +45,87 @@ def O18_w_manual_hamiltonian() -> np.ndarray[Any, float]:
 
     return H
 
+def fill_orbitals(
+    orbitals: list[OrbitalParameters],
+    n_remaining_neutrons: int,
+    n_remaining_holes: int,
+    current_orbital_idx: int,
+    orbital_occupation: list[tuple[int]],
+    current_orbital_occupation: list[int],
+):
+    if n_remaining_neutrons == 0:
+        """
+        No more neutrons to place, aka a complete configuration.
+        """
+        orbital_occupation.append(tuple(current_orbital_occupation))
+        return
+
+    if not orbitals:
+        """
+        No remaining orbitals but there are remaining neutrons, aka
+        incomplete configuration.
+        """
+        return
+    
+    if n_remaining_neutrons > n_remaining_holes:
+        """
+        Not enough holes for the remaining neutrons, aka incomplete
+        configuration.
+        """
+        return
+    
+    current_orbital = orbitals[0]
+
+    for occupation in range(0, min(current_orbital.degeneracy, n_remaining_neutrons) + 1):
+        current_orbital_occupation[current_orbital_idx] += occupation
+        
+        fill_orbitals(
+            orbitals = orbitals[1:],
+            n_remaining_neutrons = n_remaining_neutrons - occupation,
+            n_remaining_holes = n_remaining_holes - current_orbital.degeneracy,
+            current_orbital_idx = current_orbital_idx + 1,
+            orbital_occupation = orbital_occupation,
+            current_orbital_occupation = current_orbital_occupation,
+        )
+
+        current_orbital_occupation[current_orbital_idx] -= occupation
+
 def calculate_hamiltonian_dimension(
     interaction: Interaction,
-    partition_proton: Partition,
-    partition_neutron: Partition,
-    partition_combined: Partition,
-) -> tuple[int, int]:
+) -> int:
 
-    print(partition_proton.configurations)
-    # for orbital in interaction.model_space.orbitals:
-    #     orbital.degeneracy
+    print([orb.idx for orb in interaction.model_space_neutron.orbitals])
 
-    return 0, 0
+    current_orbital_occupation: list[int] = [0]*interaction.model_space_neutron.n_valence_nucleons
+    orbital_occupation: list[tuple[int]] = []
+
+    fill_orbitals(
+        orbitals = interaction.model_space_neutron.orbitals,
+        n_remaining_neutrons = interaction.model_space_neutron.n_valence_nucleons,
+        n_remaining_holes = sum([orb.degeneracy for orb in interaction.model_space_neutron.orbitals]),
+        current_orbital_idx = 0,
+        orbital_occupation = orbital_occupation,
+        current_orbital_occupation = current_orbital_occupation,
+    )
+    print(orbital_occupation)
+    print(len(orbital_occupation))
+
+    return len(orbital_occupation)
 
 def create_hamiltonian(
     interaction: Interaction,
     partition_proton: Partition,
     partition_neutron: Partition,
     partition_combined: Partition,
-):
-    n_rows, n_cols = calculate_hamiltonian_dimension(
+):  
+    n_rows_cols = calculate_hamiltonian_dimension(
         interaction = interaction,
-        partition_proton = partition_proton,
-        partition_neutron = partition_neutron,
-        partition_combined = partition_combined,
     )
 
 def main():
-    interaction: Interaction = load_interaction(filename_interaction="tmp_delete/w.snt")
+    interaction: Interaction = load_interaction(filename_interaction="O19_w/w.snt")
     partition_proton, partition_neutron, partition_combined = \
-        load_partition(filename_partition="tmp_delete/O18_w_p.ptn", interaction=interaction)
+        load_partition(filename_partition="O19_w/O19_w_p.ptn", interaction=interaction)
     
     create_hamiltonian(
         interaction = interaction,
