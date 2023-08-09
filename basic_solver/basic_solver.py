@@ -1,21 +1,11 @@
 from typing import Any
-from functools import cache
 import numpy as np
 import numpy.linalg as lalg
-from scipy.special import comb
 import kshell_utilities as ksutil
 from kshell_utilities.data_structures import (
     Interaction, Partition, OrbitalParameters
 )
 from kshell_utilities.loaders import load_interaction, load_partition
-
-@cache
-def n_choose_k(n, k):
-    """
-    NOTE: This can be replaced by a lookup table to increase speed
-    further.
-    """
-    return comb(n, k, exact=True)
 
 def fill_orbitals(
     orbitals: list[OrbitalParameters],
