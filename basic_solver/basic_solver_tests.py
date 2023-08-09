@@ -9,7 +9,7 @@ def O18_w_manual_hamiltonian() -> np.ndarray[Any, float]:
     Manual construction of the shell model hamiltonian for 18O (2
     valence neutrons) with the w interaction.
 
-    TODO: I made thisn function thinking there were two valence protons
+    TODO: I made this function thinking there were two valence protons
     while it it actually valence neutrons. It still works because the
     interaction and model space treats the protons and neutrons the same
     in this case, but it should be changed so that it is correct.
@@ -42,13 +42,27 @@ def O18_w_manual_hamiltonian() -> np.ndarray[Any, float]:
         [           tbme(0, 0, 2, 2, 0),                   tbme(0, 0, 1, 2, 0),            tbme(0, 0, 1, 1, 0),                   tbme(0, 0, 0, 2, 0),                   tbme(0, 0, 0, 1, 0),        2*spe[0] + tbme(0, 0, 0, 0, 0)],
     ])
     
+    # print(H)
+    # print()
+    # print(H_alt)
     assert np.all(H == H.T)
     assert np.all(H_alt == H_alt.T)
 
-    # eigenvalues, eigenvectors = lalg.eigh(H)
-    # print(H)
-    # print(eigenvalues)
-    # print(O18.levels)
-    # print(eigenvectors)
-
     return H_alt
+
+def O19_w_manual_hamiltonian() -> np.ndarray[Any, float]:
+    O19 = ksutil.loadtxt(path="O19_w/")
+    interaction: Interaction = load_interaction(filename_interaction="O19_w/w.snt")
+    spe = interaction.spe
+
+    def tbme(a, b, c, d, j):
+        return interaction.tbme.get((a, b, c, d, j), 0)
+
+    H = np.array([
+        #              d3/2                          d5/2^2                           s1/2^2                           d3/2 d5/2                        d3/2 s1/2                        d5/2 s1/2
+        [2*spe[0] + tbme(0, 0, 0, 0, 0),            tbme(0, 0, 1, 1, 0),            tbme(0, 0, 2, 2, 0),                   tbme(0, 0, 0, 1, 0),                   tbme(0, 0, 0, 2, 0),                   tbme(0, 0, 1, 2, 0)],
+    ])
+
+    assert np.all(H == H.T)
+
+    return H
