@@ -1,4 +1,3 @@
-from typing import Any
 import numpy as np
 import numpy.linalg as lalg
 import kshell_utilities as ksutil
@@ -6,6 +5,7 @@ from kshell_utilities.data_structures import (
     Interaction, Partition, OrbitalParameters
 )
 from kshell_utilities.loaders import load_interaction, load_partition
+from tools import n_choose_k
 
 def fill_orbitals(
     orbitals: list[OrbitalParameters],
@@ -190,6 +190,68 @@ def create_hamiltonian(
 
             H[idx_row, idx_col] = matrix_element
 
+def calculate_all_possible_pairs(
+    configurations: list[list[int]]
+) -> list[list[tuple[int, int]]]:
+    """
+    Calculate all the possible choices of two nucleons from some
+    configurations of nucleons in orbitals.
+
+    Example
+    -------
+    ```
+    >>> calculate_all_possible_pairs([[1, 1, 1], [2, 1, 0]])
+    [[(0, 1), (0, 2), (1, 2)], [(0, 0), (0, 1), (0, 1)]]
+    ```
+    Parameters
+    ----------
+    configurations:
+        A list containing the possible configurations of the valence
+        nucleons in the orbitals of the model space. Represented as
+        indices of the orbitals. Ex.:
+
+            [[1, 1, 1], [2, 1, 0], ...]
+
+        which means that the first configuration has one nucleon in each
+        of the three orbitals of the model space, while the sencond
+        configuration has two nucleons in the first orbital, one nucleon
+        in the second orbital and no nucleons in the third orbital.
+    """
+    tbme_indices: list[list[tuple[int, int]]] = []
+    
+    for configuration in configurations:
+        configuration_pair_permutation_indices: list[tuple[int, int]] = []
+        n_occupations = len(configuration)
+        
+        for idx_1 in range(n_occupations):
+            c1 = configuration[idx_1]
+            if c1 == 0: continue
+
+            for idx_2 in range(idx_1, n_occupations):
+                c2 = configuration[idx_2]
+                if c2 == 0: continue
+
+                if idx_1 == idx_2:
+                    """
+                    This if is needed for the cases where the
+                    configuration occupies only a single orbital.
+                    """
+                    configuration_pair_permutation_indices.extend(
+                        [(idx_1, idx_2)]*n_choose_k(n=c1, k=2)
+                    )
+                
+                else:
+                    configuration_pair_permutation_indices.extend(
+                        [(idx_2, idx_2)]*n_choose_k(n=c2, k=2)
+                    )
+                    configuration_pair_permutation_indices.extend(
+                        [(idx_1, idx_2)]*c1*c2
+                    )
+
+        tbme_indices.append(configuration_pair_permutation_indices)
+    
+    return tbme_indices
+
 def main():
     # interaction: Interaction = load_interaction(filename_interaction="O18_w/w.snt")
     # partition_proton, partition_neutron, partition_combined = \
@@ -202,40 +264,9 @@ def main():
     #     partition_combined = partition_combined,
     # )
 
-    configurations = [
-        [1, 1, 1], [2, 1, 0], [3, 0, 0]
-    ]
-
-    tbme_indices: list[list[tuple[int, int]]] = []
-
-    def calculate_all_possible_pairs(configuration: list[int]) -> list[tuple[int, int]]:
-        res: list[tuple[int, int]] = []
+    configurations = [[1, 1, 1], [2, 1, 0]]
         
-        for idx_1 in range(len(configuration)):
-            c1 = configuration[idx_1]
-            if c1 == 0: continue
-
-            for idx_2 in range(idx_1, len(configuration)):
-                c2 = configuration[idx_2]
-                if c2 == 0: continue
-
-                if idx_1 == idx_2:
-                    """
-                    This if is needed for the cases where the
-                    configuration occupies only a single orbital.
-                    """
-                    res.extend([(idx_1, idx_2)]*n_choose_k(n=c1, k=2))
-                
-                else:
-                    # res.extend([(idx_1, idx_1)]*n_choose_k(n=c1, k=2))
-                    res.extend([(idx_2, idx_2)]*n_choose_k(n=c2, k=2))
-                    res.extend([(idx_1, idx_2)]*c1*c2)
-
-        return res
-        
-    # tbme_indices.append(calculate_all_possible_pairs(configuration=[3, 1, 0]))
-    for configuration in configurations:
-        tbme_indices.append(calculate_all_possible_pairs(configuration=configuration))
+    tbme_indices = calculate_all_possible_pairs(configurations=configurations)
 
     print(tbme_indices)
 
