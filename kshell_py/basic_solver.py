@@ -1,11 +1,21 @@
 from typing import Any
+from functools import cache
 import numpy as np
 import numpy.linalg as lalg
+from scipy.special import comb
 import kshell_utilities as ksutil
 from kshell_utilities.data_structures import (
     Interaction, Partition, OrbitalParameters
 )
 from kshell_utilities.loaders import load_interaction, load_partition
+
+@cache
+def n_choose_k(n, k):
+    """
+    NOTE: This can be replaced by a lookup table to increase speed
+    further.
+    """
+    return comb(n, k, exact=True)
 
 def O18_w_manual_hamiltonian() -> np.ndarray[Any, float]:
     """
@@ -26,7 +36,7 @@ def O18_w_manual_hamiltonian() -> np.ndarray[Any, float]:
         return interaction.tbme[(a, b, c, d, j)]
 
     H = np.array([
-        #              d3/2^2                          d5/2^2                           s1/2^2                           d3/2 d5/2                        d3/2 s1/2                        d5/2 s1/2
+        #              d3/2                          d5/2^2                           s1/2^2                           d3/2 d5/2                        d3/2 s1/2                        d5/2 s1/2
         [2*spe[0] + tbme(0, 0, 0, 0, 0),            tbme(0, 0, 1, 1, 0),            tbme(0, 0, 2, 2, 0),                   tbme(0, 0, 0, 1, 0),                   tbme(0, 0, 0, 2, 0),                   tbme(0, 0, 1, 2, 0)], # d3/2^2
         [           tbme(1, 1, 0, 0, 0), 2*spe[1] + tbme(1, 1, 1, 1, 0),            tbme(1, 1, 2, 2, 0),                   tbme(1, 1, 0, 1, 0),                   tbme(1, 1, 0, 2, 0),                   tbme(1, 1, 1, 2, 0)], # d5/2^2
         [           tbme(2, 2, 0, 0, 0),            tbme(2, 2, 1, 1, 0), 2*spe[2] + tbme(2, 2, 2, 2, 0),                   tbme(2, 2, 0, 1, 0),                   tbme(2, 2, 0, 2, 0),                   tbme(2, 2, 1, 2, 0)], # s1/2^2
@@ -142,16 +152,35 @@ def fill_orbitals(
             orbital_occupation = orbital_occupation,
             current_orbital_occupation = current_orbital_occupation,
         )
-
         current_orbital_occupation[current_orbital_idx] -= occupation
 
-def calculate_hamiltonian_dimension(
+def calculate_hamiltonian_orbital_occupation(
     interaction: Interaction,
-) -> int:
+) -> list[tuple[int]]:
+    """
+    Given a number of valence nucleons and a model space, calculate the
+    different possible orbital occupations. The allowed occupations will
+    define the elements of the Hamiltonian matrix.
+    
+    Parameters
+    ----------
+    interaction:
+        Custom dataclass containing all necessary parameters of the
+        given interaction.
 
-    print([orb.idx for orb in interaction.model_space_neutron.orbitals])
+    Returns
+    -------
+    orbital_occupation:
+        A list containing each allowed orbital occupation. Example:
+            
+            [(0, 1, 2), (0, 2, 1), ...]
 
-    current_orbital_occupation: list[int] = [0]*interaction.model_space_neutron.n_valence_nucleons
+        where the first allowed occupation tells us that the first
+        orbital has zero nucleons, the second orbital has 1 nucleon, and
+        the third orbital has 2 nucleons. The order of the orbitals is
+        the same as the order they are listed in the interaction file.
+    """
+    current_orbital_occupation: list[int] = [0]*interaction.model_space_neutron.n_orbitals
     orbital_occupation: list[tuple[int]] = []
 
     fill_orbitals(
@@ -162,10 +191,8 @@ def calculate_hamiltonian_dimension(
         orbital_occupation = orbital_occupation,
         current_orbital_occupation = current_orbital_occupation,
     )
-    print(orbital_occupation)
-    print(len(orbital_occupation))
-
-    return len(orbital_occupation)
+    # orbital_occupation.sort()   # Sort lexicographically. NOTE: Should already be sorted from the way the orbitals are traversed.
+    return orbital_occupation
 
 def create_hamiltonian(
     interaction: Interaction,
@@ -173,21 +200,92 @@ def create_hamiltonian(
     partition_neutron: Partition,
     partition_combined: Partition,
 ):  
-    n_rows_cols = calculate_hamiltonian_dimension(
+    orbital_occupation = calculate_hamiltonian_orbital_occupation(
         interaction = interaction,
     )
+    print(orbital_occupation)
+
+    n_occupations = len(orbital_occupation)
+    H = np.zeros((n_occupations, n_occupations))
+
+    for idx_row in range(n_occupations):
+        for idx_col in range(n_occupations):
+            matrix_element = 0.0
+
+            if idx_row == idx_col:
+                for idx_orb in range(interaction.model_space_neutron.n_orbitals):
+                    matrix_element += orbital_occupation[idx_row][idx_orb]*interaction.spe[idx_orb]
+
+            for idx_orb in range(interaction.model_space_neutron.n_orbitals):
+                """
+                Choose all possible pairs of nucleons from each of the
+                configurations. In a two nucleon setting we could have:
+
+                    [(0, 0, 2), (0, 1, 1), ...]
+
+                In this case the only way to choose a pair of nucleons
+                from the first configuration is two nucleons in the
+                third orbital. In the second configuration the only way
+                is one nucleon in the second orbital and one nucleon in
+                the thirs orbital. However, for a three nucleon setting
+                we could have:
+
+                    [(0, 1, 2), (0, 2, 1), ...]
+
+                where the first configuration can give NOTE: Dont know
+                yet if (1, 2) should be counted twice or not.
+                """
+
+            H[idx_row, idx_col] = matrix_element
 
 def main():
-    interaction: Interaction = load_interaction(filename_interaction="O19_w/w.snt")
-    partition_proton, partition_neutron, partition_combined = \
-        load_partition(filename_partition="O19_w/O19_w_p.ptn", interaction=interaction)
+    # interaction: Interaction = load_interaction(filename_interaction="O18_w/w.snt")
+    # partition_proton, partition_neutron, partition_combined = \
+    #     load_partition(filename_partition="O18_w/O18_w_p.ptn", interaction=interaction)
     
-    create_hamiltonian(
-        interaction = interaction,
-        partition_proton = partition_proton,
-        partition_neutron = partition_neutron,
-        partition_combined = partition_combined,
-    )
+    # create_hamiltonian(
+    #     interaction = interaction,
+    #     partition_proton = partition_proton,
+    #     partition_neutron = partition_neutron,
+    #     partition_combined = partition_combined,
+    # )
+
+    configurations = [
+        [1, 1, 1], [2, 1, 0], [3, 0, 0]
+    ]
+
+    tbme_indices: list[list[tuple[int, int]]] = []
+
+    def calculate_all_possible_pairs(configuration: list[int]) -> list[tuple[int, int]]:
+        res: list[tuple[int, int]] = []
+        
+        for idx_1 in range(len(configuration)):
+            c1 = configuration[idx_1]
+            if c1 == 0: continue
+
+            for idx_2 in range(idx_1, len(configuration)):
+                c2 = configuration[idx_2]
+                if c2 == 0: continue
+
+                if idx_1 == idx_2:
+                    """
+                    This if is needed for the cases where the
+                    configuration occupies only a single orbital.
+                    """
+                    res.extend([(idx_1, idx_2)]*n_choose_k(n=c1, k=2))
+                
+                else:
+                    # res.extend([(idx_1, idx_1)]*n_choose_k(n=c1, k=2))
+                    res.extend([(idx_2, idx_2)]*n_choose_k(n=c2, k=2))
+                    res.extend([(idx_1, idx_2)]*c1*c2)
+
+        return res
+        
+    # tbme_indices.append(calculate_all_possible_pairs(configuration=[3, 1, 0]))
+    for configuration in configurations:
+        tbme_indices.append(calculate_all_possible_pairs(configuration=configuration))
+
+    print(tbme_indices)
 
 if __name__ == "__main__":
     main()
