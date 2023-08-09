@@ -31,8 +31,19 @@ def O18_w_manual_hamiltonian() -> np.ndarray[Any, float]:
         [           tbme(0, 2, 0, 0, 0),            tbme(0, 2, 1, 1, 0),            tbme(0, 2, 2, 2, 0),                   tbme(0, 2, 0, 1, 0), spe[0] + spe[2] + tbme(0, 2, 0, 2, 0),                   tbme(0, 2, 1, 2, 0)], # d3/2 s1/2
         [           tbme(1, 2, 0, 0, 0),            tbme(1, 2, 1, 1, 0),            tbme(1, 2, 2, 2, 0),                   tbme(1, 2, 0, 1, 0),                   tbme(1, 2, 0, 2, 0), spe[1] + spe[2] + tbme(1, 2, 1, 2, 0)], # d5/2 s1/2
     ])
+
+    H_alt = np.array([
+        #              (0, 0, 2)                            (0, 1, 1)                            (0, 2, 0)                            (1, 0, 1)                            (1, 1, 0)                            (2, 0, 0)
+        [2*spe[2] + tbme(2, 2, 2, 2, 0),                   tbme(2, 2, 1, 2, 0),            tbme(2, 2, 1, 1, 0),                   tbme(2, 2, 0, 2, 0),                   tbme(2, 2, 0, 1, 0),                   tbme(2, 2, 0, 0, 0)],
+        [           tbme(1, 2, 2, 2, 0), spe[1] + spe[2] + tbme(1, 2, 1, 2, 0),            tbme(1, 2, 1, 1, 0),                   tbme(1, 2, 0, 2, 0),                   tbme(1, 2, 0, 1, 0),                   tbme(1, 2, 0, 0, 0)],
+        [           tbme(1, 1, 2, 2, 0),                   tbme(1, 1, 1, 2, 0), 2*spe[1] + tbme(1, 1, 1, 1, 0),                   tbme(1, 1, 0, 2, 0),                   tbme(1, 1, 0, 1, 0),                   tbme(1, 1, 0, 0, 0)],
+        [           tbme(0, 2, 2, 2, 0),                   tbme(0, 2, 1, 2, 0),            tbme(0, 2, 1, 1, 0), spe[0] + spe[2] + tbme(0, 2, 0, 2, 0),                   tbme(0, 2, 0, 1, 0),                   tbme(0, 2, 0, 0, 0)],
+        [           tbme(0, 1, 2, 2, 0),                   tbme(0, 1, 1, 2, 0),            tbme(0, 1, 1, 1, 0),                   tbme(0, 1, 0, 2, 0), spe[0] + spe[1] + tbme(0, 1, 0, 1, 0),                   tbme(0, 1, 0, 0, 0)],
+        [           tbme(0, 0, 2, 2, 0),                   tbme(0, 0, 1, 2, 0),            tbme(0, 0, 1, 1, 0),                   tbme(0, 0, 0, 2, 0),                   tbme(0, 0, 0, 1, 0),        2*spe[0] + tbme(0, 0, 0, 0, 0)],
+    ])
     
     assert np.all(H == H.T)
+    assert np.all(H_alt == H_alt.T)
 
     # eigenvalues, eigenvectors = lalg.eigh(H)
     # print(H)
@@ -40,4 +51,4 @@ def O18_w_manual_hamiltonian() -> np.ndarray[Any, float]:
     # print(O18.levels)
     # print(eigenvectors)
 
-    return H
+    return H_alt
