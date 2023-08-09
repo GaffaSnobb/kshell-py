@@ -6,6 +6,7 @@ from kshell_utilities.data_structures import (
 )
 from kshell_utilities.loaders import load_interaction, load_partition
 from tools import n_choose_k
+from parameters import flags
 
 def fill_orbitals(
     orbitals: list[OrbitalParameters],
@@ -146,50 +147,6 @@ def calculate_hamiltonian_orbital_occupation(
     # orbital_occupations.sort()   # Sort lexicographically. NOTE: Should already be sorted from the way the orbitals are traversed.
     return orbital_occupations
 
-def create_hamiltonian(
-    interaction: Interaction,
-    partition_proton: Partition,
-    partition_neutron: Partition,
-    partition_combined: Partition,
-):  
-    orbital_occupations = calculate_hamiltonian_orbital_occupation(
-        interaction = interaction,
-    )
-    print(orbital_occupations)
-
-    n_occupations = len(orbital_occupations)
-    H = np.zeros((n_occupations, n_occupations))
-
-    for idx_row in range(n_occupations):
-        for idx_col in range(n_occupations):
-            matrix_element = 0.0
-
-            if idx_row == idx_col:
-                for idx_orb in range(interaction.model_space_neutron.n_orbitals):
-                    matrix_element += orbital_occupations[idx_row][idx_orb]*interaction.spe[idx_orb]
-
-            for idx_orb in range(interaction.model_space_neutron.n_orbitals):
-                """
-                Choose all possible pairs of nucleons from each of the
-                configurations. In a two nucleon setting we could have:
-
-                    [(0, 0, 2), (0, 1, 1), ...]
-
-                In this case the only way to choose a pair of nucleons
-                from the first configuration is two nucleons in the
-                third orbital. In the second configuration the only way
-                is one nucleon in the second orbital and one nucleon in
-                the thirs orbital. However, for a three nucleon setting
-                we could have:
-
-                    [(0, 1, 2), (0, 2, 1), ...]
-
-                where the first configuration can give NOTE: Dont know
-                yet if (1, 2) should be counted twice or not.
-                """
-
-            H[idx_row, idx_col] = matrix_element
-
 def calculate_all_possible_pairs(
     configurations: list[list[int]]
 ) -> list[list[tuple[int, int]]]:
@@ -252,23 +209,62 @@ def calculate_all_possible_pairs(
     
     return tbme_indices
 
+def create_hamiltonian(
+    interaction: Interaction,
+    partition_proton: Partition,
+    partition_neutron: Partition,
+    partition_combined: Partition,
+):  
+    orbital_occupations = calculate_hamiltonian_orbital_occupation(
+        interaction = interaction,
+    )
+    print(orbital_occupations)
+
+    n_occupations = len(orbital_occupations)
+    H = np.zeros((n_occupations, n_occupations))
+
+    for idx_row in range(n_occupations):
+        for idx_col in range(n_occupations):
+            matrix_element = 0.0
+
+            if idx_row == idx_col:
+                for idx_orb in range(interaction.model_space_neutron.n_orbitals):
+                    matrix_element += orbital_occupations[idx_row][idx_orb]*interaction.spe[idx_orb]
+
+            for idx_orb in range(interaction.model_space_neutron.n_orbitals):
+                """
+                Choose all possible pairs of nucleons from each of the
+                configurations. In a two nucleon setting we could have:
+
+                    [(0, 0, 2), (0, 1, 1), ...]
+
+                In this case the only way to choose a pair of nucleons
+                from the first configuration is two nucleons in the
+                third orbital. In the second configuration the only way
+                is one nucleon in the second orbital and one nucleon in
+                the thirs orbital. However, for a three nucleon setting
+                we could have:
+
+                    [(0, 1, 2), (0, 2, 1), ...]
+
+                where the first configuration can give NOTE: Dont know
+                yet if (1, 2) should be counted twice or not.
+                """
+
+            H[idx_row, idx_col] = matrix_element
+
 def main():
-    # interaction: Interaction = load_interaction(filename_interaction="O18_w/w.snt")
-    # partition_proton, partition_neutron, partition_combined = \
-    #     load_partition(filename_partition="O18_w/O18_w_p.ptn", interaction=interaction)
+    interaction: Interaction = load_interaction(filename_interaction="O18_w/w.snt")
+    partition_proton, partition_neutron, partition_combined = \
+        load_partition(filename_partition="O18_w/O18_w_p.ptn", interaction=interaction)
     
-    # create_hamiltonian(
-    #     interaction = interaction,
-    #     partition_proton = partition_proton,
-    #     partition_neutron = partition_neutron,
-    #     partition_combined = partition_combined,
-    # )
-
-    configurations = [[1, 1, 1], [2, 1, 0]]
-        
-    tbme_indices = calculate_all_possible_pairs(configurations=configurations)
-
-    print(tbme_indices)
+    create_hamiltonian(
+        interaction = interaction,
+        partition_proton = partition_proton,
+        partition_neutron = partition_neutron,
+        partition_combined = partition_combined,
+    )
 
 if __name__ == "__main__":
+    flags["debug"] = True
     main()
