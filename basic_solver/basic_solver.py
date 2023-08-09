@@ -1,5 +1,6 @@
+import time
 import numpy as np
-import numpy.linalg as lalg
+from numpy.linalg import eigh
 import kshell_utilities as ksutil
 from kshell_utilities.data_structures import (
     Interaction, Partition, OrbitalParameters
@@ -7,6 +8,8 @@ from kshell_utilities.data_structures import (
 from kshell_utilities.loaders import load_interaction, load_partition
 from tools import n_choose_k
 from parameters import flags
+from data_structures import timings
+from basic_solver_tests import O18_w_manual_hamiltonian
 
 def fill_orbitals(
     orbitals: list[OrbitalParameters],
@@ -71,6 +74,7 @@ def fill_orbitals(
         current_orbital_occupation list. Is incremented +1 for every
         recursive function call.
     """
+    timing = time.perf_counter()
     if n_remaining_neutrons == 0:
         """
         No more neutrons to place, aka a complete configuration.
@@ -107,6 +111,9 @@ def fill_orbitals(
         )
         current_orbital_occupation[current_orbital_idx] -= occupation
 
+    timing = time.perf_counter() - timing
+    timings.fill_orbitals = timing  # The initial call of this function will overwrite all the timings from the recursive calls, giving the total time.
+
 def calculate_hamiltonian_orbital_occupation(
     interaction: Interaction,
 ) -> list[tuple[int]]:
@@ -133,6 +140,7 @@ def calculate_hamiltonian_orbital_occupation(
         the third orbital has 2 nucleons. The order of the orbitals is
         the same as the order they are listed in the interaction file.
     """
+    timing = time.perf_counter()
     current_orbital_occupation: list[int] = [0]*interaction.model_space_neutron.n_orbitals
     orbital_occupations: list[tuple[int]] = []
 
@@ -144,94 +152,118 @@ def calculate_hamiltonian_orbital_occupation(
         orbital_occupations = orbital_occupations,
         current_orbital_occupation = current_orbital_occupation,
     )
-    # orbital_occupations.sort()   # Sort lexicographically. NOTE: Should already be sorted from the way the orbitals are traversed.
+
+    if flags["debug"]:
+        """
+        Should already be sorted lexicographically from the way the
+        orbitals are traversed.
+        """
+        assert sorted(orbital_occupations) == orbital_occupations
+    
+    timing = time.perf_counter() - timing
+    timings.calculate_hamiltonian_orbital_occupation = timing - timings.fill_orbitals
+
     return orbital_occupations
 
 def calculate_all_possible_pairs(
-    configurations: list[list[int]]
-) -> list[list[tuple[int, int]]]:
+    configuration: tuple[int],
+) -> list[tuple[int, int]]:
     """
     Calculate all the possible choices of two nucleons from some
-    configurations of nucleons in orbitals.
+    configuration of nucleons in orbitals.
+
+    TODO: @cache this?
 
     Example
     -------
     ```
-    >>> calculate_all_possible_pairs([[1, 1, 1], [2, 1, 0]])
-    [[(0, 1), (0, 2), (1, 2)], [(0, 0), (0, 1), (0, 1)]]
+    >>> calculate_all_possible_pairs((1, 1, 1))
+    [(0, 1), (0, 2), (1, 2)]
     ```
     Parameters
     ----------
-    configurations:
-        A list containing the possible configurations of the valence
+    configuration:
+        A list containing a possible configuration of the valence
         nucleons in the orbitals of the model space. Represented as
         indices of the orbitals. Ex.:
 
-            [[1, 1, 1], [2, 1, 0], ...]
+            (1, 1, 1), (2, 1, 0)
 
         which means that the first configuration has one nucleon in each
         of the three orbitals of the model space, while the sencond
         configuration has two nucleons in the first orbital, one nucleon
         in the second orbital and no nucleons in the third orbital.
     """
-    tbme_indices: list[list[tuple[int, int]]] = []
+    timing = time.perf_counter()
+    configuration_pair_permutation_indices: list[tuple[int, int]] = []
+    n_occupations = len(configuration)
     
-    for configuration in configurations:
-        configuration_pair_permutation_indices: list[tuple[int, int]] = []
-        n_occupations = len(configuration)
-        
-        for idx_1 in range(n_occupations):
-            c1 = configuration[idx_1]
-            if c1 == 0: continue
+    for idx_1 in range(n_occupations):
+        c1 = configuration[idx_1]
+        if c1 == 0: continue
 
-            for idx_2 in range(idx_1, n_occupations):
-                c2 = configuration[idx_2]
-                if c2 == 0: continue
+        for idx_2 in range(idx_1, n_occupations):
+            c2 = configuration[idx_2]
+            if c2 == 0: continue
 
-                if idx_1 == idx_2:
-                    """
-                    This if is needed for the cases where the
-                    configuration occupies only a single orbital.
-                    """
-                    configuration_pair_permutation_indices.extend(
-                        [(idx_1, idx_2)]*n_choose_k(n=c1, k=2)
-                    )
-                
-                else:
-                    configuration_pair_permutation_indices.extend(
-                        [(idx_2, idx_2)]*n_choose_k(n=c2, k=2)
-                    )
-                    configuration_pair_permutation_indices.extend(
-                        [(idx_1, idx_2)]*c1*c2
-                    )
+            if idx_1 == idx_2:
+                """
+                This if is needed for the cases where the
+                configuration occupies only a single orbital.
+                """
+                configuration_pair_permutation_indices.extend(
+                    [(idx_1, idx_2)]*n_choose_k(n=c1, k=2)
+                )
+            
+            else:
+                configuration_pair_permutation_indices.extend(
+                    [(idx_2, idx_2)]*n_choose_k(n=c2, k=2)
+                )
+                configuration_pair_permutation_indices.extend(
+                    [(idx_1, idx_2)]*c1*c2
+                )
 
-        tbme_indices.append(configuration_pair_permutation_indices)
-    
-    return tbme_indices
+    timing = time.perf_counter() - timing
+    timings.calculate_all_possible_pairs += timing
+
+    return configuration_pair_permutation_indices
 
 def create_hamiltonian(
     interaction: Interaction,
     partition_proton: Partition,
     partition_neutron: Partition,
     partition_combined: Partition,
-):  
+) -> np.ndarray:  
+    timing = time.perf_counter()
+    timings.calculate_all_possible_pairs = 0.0    # This timing value will be added to several times and must start at 0.
     orbital_occupations = calculate_hamiltonian_orbital_occupation(
         interaction = interaction,
     )
     print(orbital_occupations)
-
     n_occupations = len(orbital_occupations)
     H = np.zeros((n_occupations, n_occupations))
 
     for idx_row in range(n_occupations):
+        """
+        Generate the matrix elements of the hamiltonian.
+        """
+        orbital_indices_row = orbital_occupations[idx_row]
+        tbme_indices_row = calculate_all_possible_pairs(configuration=orbital_indices_row)
+        
         for idx_col in range(n_occupations):
             matrix_element = 0.0
+            orbital_indices_col = orbital_occupations[idx_col]
+            tbme_indices_col = calculate_all_possible_pairs(configuration=orbital_indices_col)
 
             if idx_row == idx_col:
+                """
+                The single particle energies only show up in the
+                diagonal elements.
+                """
                 for idx_orb in range(interaction.model_space_neutron.n_orbitals):
-                    matrix_element += orbital_occupations[idx_row][idx_orb]*interaction.spe[idx_orb]
+                    matrix_element += orbital_indices_row[idx_orb]*interaction.spe[idx_orb]
 
-            for idx_orb in range(interaction.model_space_neutron.n_orbitals):
+            for tbme_index_row, tbme_index_col in zip(tbme_indices_row, tbme_indices_col):
                 """
                 Choose all possible pairs of nucleons from each of the
                 configurations. In a two nucleon setting we could have:
@@ -247,24 +279,41 @@ def create_hamiltonian(
 
                     [(0, 1, 2), (0, 2, 1), ...]
 
-                where the first configuration can give NOTE: Dont know
-                yet if (1, 2) should be counted twice or not.
+                where in the first configuration we can pick one nucleon
+                in orbital 2 and one nucleon in orbital 3, and we can do
+                this twice since there are two particles in orbital 3.
                 """
+                tbme_index_row_col = tbme_index_row + tbme_index_col + (0,)
+                matrix_element += interaction.tbme.get(tbme_index_row_col, 0)
 
             H[idx_row, idx_col] = matrix_element
 
+    timing = time.perf_counter() - timing
+    timings.create_hamiltonian = timing - timings.calculate_hamiltonian_orbital_occupation - timings.fill_orbitals
+
+    return H
+
 def main():
-    interaction: Interaction = load_interaction(filename_interaction="O18_w/w.snt")
+    interaction: Interaction = load_interaction(filename_interaction="O19_w/w.snt")
     partition_proton, partition_neutron, partition_combined = \
-        load_partition(filename_partition="O18_w/O18_w_p.ptn", interaction=interaction)
+        load_partition(filename_partition="O19_w/O19_w_p.ptn", interaction=interaction)
     
-    create_hamiltonian(
+    timing = time.perf_counter()
+    H = create_hamiltonian(
         interaction = interaction,
         partition_proton = partition_proton,
         partition_neutron = partition_neutron,
         partition_combined = partition_combined,
     )
+    timing = time.perf_counter() - timing
+    timings.main = timing
+
+    # print(H)
+
+    eigvalues, eigfunctions = eigh(H)
+    print(f"{eigvalues = }")
 
 if __name__ == "__main__":
     flags["debug"] = True
     main()
+    print(timings)
