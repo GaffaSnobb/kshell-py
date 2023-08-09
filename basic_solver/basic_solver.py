@@ -17,47 +17,9 @@ def n_choose_k(n, k):
     """
     return comb(n, k, exact=True)
 
-def O18_w_manual_hamiltonian() -> np.ndarray[Any, float]:
-    """
-    Manual construction of the shell model hamiltonian for 18O (2
-    valence neutrons) with the w interaction.
-
-    TODO: I made thisn function thinking there were two valence protons
-    while it it actually valence neutrons. It still works because the
-    interaction and model space treats the protons and neutrons the same
-    in this case, but it should be changed so that it is correct.
-    """
-    O18 = ksutil.loadtxt(path="O18_w/")
-    interaction: Interaction = load_interaction(filename_interaction="O18_w/w.snt")
-    spe = interaction.spe
-
-    def tbme(a, b, c, d, j):
-        return interaction.tbme.get((a, b, c, d, j), 0)
-        return interaction.tbme[(a, b, c, d, j)]
-
-    H = np.array([
-        #              d3/2                          d5/2^2                           s1/2^2                           d3/2 d5/2                        d3/2 s1/2                        d5/2 s1/2
-        [2*spe[0] + tbme(0, 0, 0, 0, 0),            tbme(0, 0, 1, 1, 0),            tbme(0, 0, 2, 2, 0),                   tbme(0, 0, 0, 1, 0),                   tbme(0, 0, 0, 2, 0),                   tbme(0, 0, 1, 2, 0)], # d3/2^2
-        [           tbme(1, 1, 0, 0, 0), 2*spe[1] + tbme(1, 1, 1, 1, 0),            tbme(1, 1, 2, 2, 0),                   tbme(1, 1, 0, 1, 0),                   tbme(1, 1, 0, 2, 0),                   tbme(1, 1, 1, 2, 0)], # d5/2^2
-        [           tbme(2, 2, 0, 0, 0),            tbme(2, 2, 1, 1, 0), 2*spe[2] + tbme(2, 2, 2, 2, 0),                   tbme(2, 2, 0, 1, 0),                   tbme(2, 2, 0, 2, 0),                   tbme(2, 2, 1, 2, 0)], # s1/2^2
-        [           tbme(0, 1, 0, 0, 0),            tbme(0, 1, 1, 1, 0),            tbme(0, 1, 2, 2, 0), spe[0] + spe[1] + tbme(0, 1, 0, 1, 0),                   tbme(0, 1, 0, 2, 0),                   tbme(0, 1, 1, 2, 0)], # d3/2 d5/2
-        [           tbme(0, 2, 0, 0, 0),            tbme(0, 2, 1, 1, 0),            tbme(0, 2, 2, 2, 0),                   tbme(0, 2, 0, 1, 0), spe[0] + spe[2] + tbme(0, 2, 0, 2, 0),                   tbme(0, 2, 1, 2, 0)], # d3/2 s1/2
-        [           tbme(1, 2, 0, 0, 0),            tbme(1, 2, 1, 1, 0),            tbme(1, 2, 2, 2, 0),                   tbme(1, 2, 0, 1, 0),                   tbme(1, 2, 0, 2, 0), spe[1] + spe[2] + tbme(1, 2, 1, 2, 0)], # d5/2 s1/2
-    ])
-    
-    assert np.all(H == H.T)
-
-    eigenvalues, eigenvectors = lalg.eigh(H)
-    # print(H)
-    print(eigenvalues)
-    print(O18.levels)
-    # print(eigenvectors)
-
-    return H
-
 def fill_orbitals(
     orbitals: list[OrbitalParameters],
-    orbital_occupation: list[tuple[int]],
+    orbital_occupations: list[tuple[int]],
     current_orbital_occupation: list[int],
     n_remaining_neutrons: int,
     n_remaining_holes: int,
@@ -89,7 +51,7 @@ def fill_orbitals(
     |
     --> The function returns early because there are no orbitals left.
         If there are no nucleons left, 'current_orbital_occupation' is
-        saved to 'orbital_occupation'. If there are nucleons left, the
+        saved to 'orbital_occupations'. If there are nucleons left, the
         current orbital occupation is not stored and the occupation
         iteration in the previous recursive call is continued.
 
@@ -99,12 +61,12 @@ def fill_orbitals(
         List of the remaining orbitals in the model space.
         OrbitalParameters contains various parameters for the orbitals.
 
-    orbital_occupation:
+    orbital_occupations:
         A list for storing the valid configurations.
 
     current_orbital_occupation:
         Storage for the current occupation. Will be copied to
-        orbital_occupation if it is valid.
+        orbital_occupations if it is valid.
 
     n_remaining_neutrons:
         The remaining number of nucleons to place into the remaining
@@ -122,7 +84,7 @@ def fill_orbitals(
         """
         No more neutrons to place, aka a complete configuration.
         """
-        orbital_occupation.append(tuple(current_orbital_occupation))    # tuple conversion was marginally faster than list.copy().
+        orbital_occupations.append(tuple(current_orbital_occupation))    # tuple conversion was marginally faster than list.copy().
         return
 
     if not orbitals:
@@ -149,7 +111,7 @@ def fill_orbitals(
             n_remaining_neutrons = n_remaining_neutrons - occupation,
             n_remaining_holes = n_remaining_holes - current_orbital.degeneracy,
             current_orbital_idx = current_orbital_idx + 1,
-            orbital_occupation = orbital_occupation,
+            orbital_occupations = orbital_occupations,
             current_orbital_occupation = current_orbital_occupation,
         )
         current_orbital_occupation[current_orbital_idx] -= occupation
@@ -170,7 +132,7 @@ def calculate_hamiltonian_orbital_occupation(
 
     Returns
     -------
-    orbital_occupation:
+    orbital_occupations:
         A list containing each allowed orbital occupation. Example:
             
             [(0, 1, 2), (0, 2, 1), ...]
@@ -181,18 +143,18 @@ def calculate_hamiltonian_orbital_occupation(
         the same as the order they are listed in the interaction file.
     """
     current_orbital_occupation: list[int] = [0]*interaction.model_space_neutron.n_orbitals
-    orbital_occupation: list[tuple[int]] = []
+    orbital_occupations: list[tuple[int]] = []
 
     fill_orbitals(
         orbitals = interaction.model_space_neutron.orbitals,
         n_remaining_neutrons = interaction.model_space_neutron.n_valence_nucleons,
         n_remaining_holes = sum([orb.degeneracy for orb in interaction.model_space_neutron.orbitals]),
         current_orbital_idx = 0,
-        orbital_occupation = orbital_occupation,
+        orbital_occupations = orbital_occupations,
         current_orbital_occupation = current_orbital_occupation,
     )
-    # orbital_occupation.sort()   # Sort lexicographically. NOTE: Should already be sorted from the way the orbitals are traversed.
-    return orbital_occupation
+    # orbital_occupations.sort()   # Sort lexicographically. NOTE: Should already be sorted from the way the orbitals are traversed.
+    return orbital_occupations
 
 def create_hamiltonian(
     interaction: Interaction,
@@ -200,12 +162,12 @@ def create_hamiltonian(
     partition_neutron: Partition,
     partition_combined: Partition,
 ):  
-    orbital_occupation = calculate_hamiltonian_orbital_occupation(
+    orbital_occupations = calculate_hamiltonian_orbital_occupation(
         interaction = interaction,
     )
-    print(orbital_occupation)
+    print(orbital_occupations)
 
-    n_occupations = len(orbital_occupation)
+    n_occupations = len(orbital_occupations)
     H = np.zeros((n_occupations, n_occupations))
 
     for idx_row in range(n_occupations):
@@ -214,7 +176,7 @@ def create_hamiltonian(
 
             if idx_row == idx_col:
                 for idx_orb in range(interaction.model_space_neutron.n_orbitals):
-                    matrix_element += orbital_occupation[idx_row][idx_orb]*interaction.spe[idx_orb]
+                    matrix_element += orbital_occupations[idx_row][idx_orb]*interaction.spe[idx_orb]
 
             for idx_orb in range(interaction.model_space_neutron.n_orbitals):
                 """
