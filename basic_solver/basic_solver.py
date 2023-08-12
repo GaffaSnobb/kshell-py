@@ -197,30 +197,41 @@ def calculate_all_possible_pairs(
     timing = time.perf_counter()
     configuration_pair_permutation_indices: list[tuple[int, int]] = []
     n_occupations = len(configuration)
+
+    for idx in range(n_occupations):
+        occ = configuration[idx]
+        if occ == 0: continue
+
+        configuration_pair_permutation_indices.extend(
+            [(idx, idx)]*n_choose_k(n=occ, k=2)
+        )
     
     for idx_1 in range(n_occupations):
-        c1 = configuration[idx_1]
-        if c1 == 0: continue
+        occ_1 = configuration[idx_1]
+        if occ_1 == 0: continue
 
-        for idx_2 in range(idx_1, n_occupations):
-            c2 = configuration[idx_2]
-            if c2 == 0: continue
+        for idx_2 in range(idx_1 + 1, n_occupations):
+            occ_2 = configuration[idx_2]
+            if occ_2 == 0: continue
 
             if idx_1 == idx_2:
                 """
                 This if is needed for the cases where the
                 configuration occupies only a single orbital.
                 """
+                # print("equal", [(idx_1, idx_2)]*n_choose_k(n=occ_1, k=2))
                 configuration_pair_permutation_indices.extend(
-                    [(idx_1, idx_2)]*n_choose_k(n=c1, k=2)
+                    [(idx_1, idx_2)]*n_choose_k(n=occ_1, k=2)
                 )
             
             else:
+                # print("NÆÆT equal", [(idx_2, idx_2)]*n_choose_k(n=occ_2, k=2))
+                # print("NÆÆT equal", [(idx_1, idx_2)]*occ_1*occ_2)
+                # configuration_pair_permutation_indices.extend(
+                #     [(idx_2, idx_2)]*n_choose_k(n=occ_2, k=2)
+                # )
                 configuration_pair_permutation_indices.extend(
-                    [(idx_2, idx_2)]*n_choose_k(n=c2, k=2)
-                )
-                configuration_pair_permutation_indices.extend(
-                    [(idx_1, idx_2)]*c1*c2
+                    [(idx_1, idx_2)]*occ_1*occ_2
                 )
 
     timing = time.perf_counter() - timing
@@ -249,6 +260,8 @@ def create_hamiltonian(
         """
         orbital_indices_row = orbital_occupations[idx_row]
         tbme_indices_row = calculate_all_possible_pairs(configuration=orbital_indices_row)
+        print(tbme_indices_row)
+        # return
         
         for idx_col in range(n_occupations):
             matrix_element = 0.0
@@ -308,10 +321,9 @@ def main():
     timing = time.perf_counter() - timing
     timings.main = timing
 
-    # print(H)
-
-    eigvalues, eigfunctions = eigh(H)
-    print(f"{eigvalues = }")
+    # print(np.all(H == O18_w_manual_hamiltonian()))
+    # eigvalues, eigfunctions = eigh(H)
+    # print(f"{eigvalues = }")
 
 if __name__ == "__main__":
     flags["debug"] = True
