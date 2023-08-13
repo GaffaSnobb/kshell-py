@@ -7,7 +7,7 @@ class Timing:
     function they represent.
     """
     fill_orbitals: float = -1.0
-    calculate_hamiltonian_orbital_occupation: float = -1.0
+    calculate_all_possible_orbital_occupations: float = -1.0
     calculate_all_possible_pairs: float = -1.0
     create_hamiltonian: float = -1.0
     main: float = -1.0
