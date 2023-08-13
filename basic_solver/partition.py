@@ -1,4 +1,4 @@
-import time
+import time, math
 from kshell_utilities.data_structures import (
     OrbitalParameters, Interaction
 )
@@ -159,3 +159,71 @@ def calculate_all_possible_orbital_occupations(
     timings.calculate_all_possible_orbital_occupations = timing - timings.fill_orbitals
 
     return orbital_occupations
+
+def calculate_all_possible_pairs(
+    configuration: tuple[int],
+) -> list[tuple[int, int]]:
+    """
+    Calculate all the possible choices of two nucleons from some
+    configuration of nucleons in orbitals.
+
+    TODO: @cache this?
+
+    Example
+    -------
+    ```
+    >>> calculate_all_possible_pairs((1, 1, 1))
+    [(0, 1), (0, 2), (1, 2)]
+    ```
+    Parameters
+    ----------
+    configuration:
+        A list containing a possible configuration of the valence
+        nucleons in the orbitals of the model space. Represented as
+        indices of the orbitals. Ex.:
+
+            (1, 1, 1), (2, 1, 0)
+
+        which means that the first configuration has one nucleon in each
+        of the three orbitals of the model space, while the sencond
+        configuration has two nucleons in the first orbital, one nucleon
+        in the second orbital and no nucleons in the third orbital.
+    """
+    timing = time.perf_counter()
+    configuration_pair_permutation_indices: list[tuple[int, int]] = []
+    n_occupations = len(configuration)
+
+    for idx in range(n_occupations):
+        occ = configuration[idx]
+        if occ == 0: continue
+
+        configuration_pair_permutation_indices.extend(
+            [(idx, idx)]*math.comb(occ, 2)
+        )
+    
+    for idx_1 in range(n_occupations):
+        occ_1 = configuration[idx_1]
+        if occ_1 == 0: continue
+
+        for idx_2 in range(idx_1 + 1, n_occupations):
+            occ_2 = configuration[idx_2]
+            if occ_2 == 0: continue
+
+            if idx_1 == idx_2:
+                """
+                This if is needed for the cases where the
+                configuration occupies only a single orbital.
+                """
+                configuration_pair_permutation_indices.extend(
+                    [(idx_1, idx_2)]*math.comb(occ_1, 2)
+                )
+            
+            else:
+                configuration_pair_permutation_indices.extend(
+                    [(idx_1, idx_2)]*occ_1*occ_2
+                )
+
+    timing = time.perf_counter() - timing
+    timings.calculate_all_possible_pairs += timing
+
+    return configuration_pair_permutation_indices
