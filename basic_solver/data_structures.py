@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass(slots=True)
 class Timing:
@@ -32,3 +32,68 @@ class Timing:
 
 
 timings: Timing = Timing()
+
+@dataclass(slots=True)
+class Configuration:
+    """
+    configuration : tuple[int, ...]
+        A tuple containing an allowed orbital occupation. Example:
+            
+            (0, 1, 2)
+
+        where the numbers tell us that the first orbital has zero
+        nucleons, the second orbital has 1 nucleon, and the third
+        orbital has 2 nucleons. The order of the orbitals is the same as
+        the order they are listed in the interaction file.
+
+    parity : int
+        The parity of the allowed orbital occupation.
+    """
+    configuration: tuple[int, ...]
+    parity: int
+
+    def __lt__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration < other.configuration
+        return NotImplemented
+
+    def __le__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration <= other.configuration
+        return NotImplemented
+
+    def __gt__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration > other.configuration
+        return NotImplemented
+
+    def __ge__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration >= other.configuration
+        return NotImplemented
+
+    def __eq__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration == other.configuration
+        return NotImplemented
+
+    def __ne__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration != other.configuration
+        return NotImplemented
+
+@dataclass(slots=True)
+class Partition:
+    """
+    configurations : list[Configuration]
+        A list containing a configuration object with information about
+        the allowed orbital occupations. Example of the configurations:
+            
+            [(0, 1, 2), (0, 2, 1), ...]
+
+        where the first allowed occupation tells us that the first
+        orbital has zero nucleons, the second orbital has 1 nucleon, and
+        the third orbital has 2 nucleons. The order of the orbitals is
+        the same as the order they are listed in the interaction file.
+    """
+    configurations: list[Configuration] = field(default_factory=list)

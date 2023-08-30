@@ -2,12 +2,14 @@ import time, math
 from kshell_utilities.data_structures import (
     OrbitalParameters, Interaction
 )
-from data_structures import timings
+from data_structures import timings, Partition, Configuration
 from parameters import flags
 
-def fill_orbitals(
+def _fill_orbitals(
     orbitals: list[OrbitalParameters],
-    orbital_occupations: list[tuple[int]],
+    # orbital_occupations: list[tuple[int]],
+    partition: Partition,
+    interaction: Interaction,
     current_orbital_occupation: list[int],
     n_remaining_neutrons: int,
     n_remaining_holes: int,
@@ -22,6 +24,9 @@ def fill_orbitals(
     orbital in the model space. For each call, the function loops over
     all possible numbers of occupation, accounting for the current
     orbital degeneracy and the number of remaining nucleons.
+
+    After all recursive calls have been completed, this function will
+    have produced the same content as the partition files from KSHELL.
 
     Example
     -------
@@ -73,7 +78,17 @@ def fill_orbitals(
         """
         No more neutrons to place, aka a complete configuration.
         """
-        orbital_occupations.append(tuple(current_orbital_occupation))    # tuple conversion was marginally faster than list.copy().
+        # orbital_occupations.append(tuple(current_orbital_occupation))    # tuple conversion was marginally faster than list.copy().
+        current_orbital_parity: int = 1
+        for orbital, occupation in zip(interaction.model_space_neutron.orbitals, current_orbital_occupation):
+            current_orbital_parity *= orbital.parity**(occupation)
+
+        partition.configurations.append(
+            Configuration(
+                configuration = tuple(current_orbital_occupation),  # tuple conversion was marginally faster than list.copy().
+                parity = current_orbital_parity,
+            )
+        )
         return
 
     if not orbitals:
@@ -95,12 +110,14 @@ def fill_orbitals(
     for occupation in range(0, min(current_orbital.degeneracy, n_remaining_neutrons) + 1):
         current_orbital_occupation[current_orbital_idx] += occupation
         
-        fill_orbitals(
+        _fill_orbitals(
             orbitals = orbitals[1:],
             n_remaining_neutrons = n_remaining_neutrons - occupation,
             n_remaining_holes = n_remaining_holes - current_orbital.degeneracy,
             current_orbital_idx = current_orbital_idx + 1,
-            orbital_occupations = orbital_occupations,
+            # orbital_occupations = orbital_occupations,
+            partition = partition,
+            interaction = interaction,
             current_orbital_occupation = current_orbital_occupation,
         )
         current_orbital_occupation[current_orbital_idx] -= occupation
@@ -110,11 +127,13 @@ def fill_orbitals(
 
 def calculate_all_possible_orbital_occupations(
     interaction: Interaction,
-) -> list[tuple[int]]:
+) -> Partition:
     """
     Given a number of valence nucleons and a model space, calculate the
     different possible orbital occupations. This is the same as the
     proton / neutron partition in the KSHELL .ptn files.
+
+    Aka. generate the partition file!
     
     Parameters
     ----------
@@ -124,44 +143,47 @@ def calculate_all_possible_orbital_occupations(
 
     Returns
     -------
-    orbital_occupations:
-        A list containing each allowed orbital occupation. Example:
-            
-            [(0, 1, 2), (0, 2, 1), ...]
+    partition : Partition
 
-        where the first allowed occupation tells us that the first
-        orbital has zero nucleons, the second orbital has 1 nucleon, and
-        the third orbital has 2 nucleons. The order of the orbitals is
-        the same as the order they are listed in the interaction file.
+    M_target:
+        The target value of the sum of the total angular momentum z
+        projections of the nucleons in the pair. `M = m0 + m1`. A pair
+        will be kept only if the sum of the z projections of the two
+        nucleons in the pair is equal to this value.
     """
     timing = time.perf_counter()
     current_orbital_occupation: list[int] = [0]*interaction.model_space_neutron.n_orbitals
-    orbital_occupations: list[tuple[int]] = []
+    # orbital_occupations: list[tuple[int, ...]] = []
 
-    fill_orbitals(
+    partition: Partition = Partition()
+
+    _fill_orbitals(
         orbitals = interaction.model_space_neutron.orbitals,
         n_remaining_neutrons = interaction.model_space_neutron.n_valence_nucleons,
         n_remaining_holes = sum([orb.degeneracy for orb in interaction.model_space_neutron.orbitals]),
         current_orbital_idx = 0,
-        orbital_occupations = orbital_occupations,
+        # orbital_occupations = orbital_occupations,
+        partition = partition,
+        interaction = interaction,
         current_orbital_occupation = current_orbital_occupation,
     )
-
     if flags["debug"]:
         """
         Should already be sorted lexicographically from the way the
         orbitals are traversed.
         """
-        assert sorted(orbital_occupations) == orbital_occupations
-        assert all(sum(occupation) == interaction.model_space_neutron.n_valence_nucleons for occupation in orbital_occupations)
+        # assert sorted(orbital_occupations) == orbital_occupations
+        assert sorted(partition.configurations) == partition.configurations
+        assert all(sum(configuration.configuration) == interaction.model_space_neutron.n_valence_nucleons for configuration in partition.configurations)
     
     timing = time.perf_counter() - timing
     timings.calculate_all_possible_orbital_occupations = timing - timings.fill_orbitals
 
-    return orbital_occupations
+    return partition
 
 def calculate_all_possible_pairs(
     configuration: tuple[int],
+    M_target: int,
 ) -> list[tuple[int, int]]:
     """
     Calculate all the possible choices of two nucleons from some
@@ -188,12 +210,22 @@ def calculate_all_possible_pairs(
         of the three orbitals of the model space, while the sencond
         configuration has two nucleons in the first orbital, one nucleon
         in the second orbital and no nucleons in the third orbital.
+
+    M_target:
+        The target value of the sum of the total angular momentum z
+        projections of the nucleons in the pair. `M = m0 + m1`. A pair
+        will be kept only if the sum of the z projections of the two
+        nucleons in the pair is equal to this value.
     """
     timing = time.perf_counter()
+    j_orbital_values: list[int] = [3, 5, 1] # Hard-coded for d3/2, d5/2, s1/2.
     configuration_pair_permutation_indices: list[tuple[int, int]] = []
     n_occupations = len(configuration)
 
     for idx in range(n_occupations):
+        """
+        Deal with all the pairs within the same orbital.
+        """
         occ = configuration[idx]
         if occ == 0: continue
 
@@ -204,10 +236,14 @@ def calculate_all_possible_pairs(
     for idx_1 in range(n_occupations):
         occ_1 = configuration[idx_1]
         if occ_1 == 0: continue
+        
+        j_1 = j_orbital_values[idx_1]
 
         for idx_2 in range(idx_1 + 1, n_occupations):
             occ_2 = configuration[idx_2]
             if occ_2 == 0: continue
+
+            j_2 = j_orbital_values[idx_2]
 
             if idx_1 == idx_2:
                 """
