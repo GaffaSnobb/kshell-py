@@ -7,7 +7,6 @@ from parameters import flags
 
 def _fill_orbitals(
     orbitals: list[OrbitalParameters],
-    # orbital_occupations: list[tuple[int]],
     partition: Partition,
     interaction: Interaction,
     current_orbital_occupation: list[int],
@@ -78,7 +77,6 @@ def _fill_orbitals(
         """
         No more neutrons to place, aka a complete configuration.
         """
-        # orbital_occupations.append(tuple(current_orbital_occupation))    # tuple conversion was marginally faster than list.copy().
         current_orbital_parity: int = 1
         for orbital, occupation in zip(interaction.model_space_neutron.orbitals, current_orbital_occupation):
             current_orbital_parity *= orbital.parity**(occupation)
@@ -115,7 +113,6 @@ def _fill_orbitals(
             n_remaining_neutrons = n_remaining_neutrons - occupation,
             n_remaining_holes = n_remaining_holes - current_orbital.degeneracy,
             current_orbital_idx = current_orbital_idx + 1,
-            # orbital_occupations = orbital_occupations,
             partition = partition,
             interaction = interaction,
             current_orbital_occupation = current_orbital_occupation,
@@ -153,8 +150,6 @@ def calculate_all_possible_orbital_occupations(
     """
     timing = time.perf_counter()
     current_orbital_occupation: list[int] = [0]*interaction.model_space_neutron.n_orbitals
-    # orbital_occupations: list[tuple[int, ...]] = []
-
     partition: Partition = Partition()
 
     _fill_orbitals(
@@ -162,7 +157,6 @@ def calculate_all_possible_orbital_occupations(
         n_remaining_neutrons = interaction.model_space_neutron.n_valence_nucleons,
         n_remaining_holes = sum([orb.degeneracy for orb in interaction.model_space_neutron.orbitals]),
         current_orbital_idx = 0,
-        # orbital_occupations = orbital_occupations,
         partition = partition,
         interaction = interaction,
         current_orbital_occupation = current_orbital_occupation,
@@ -172,7 +166,6 @@ def calculate_all_possible_orbital_occupations(
         Should already be sorted lexicographically from the way the
         orbitals are traversed.
         """
-        # assert sorted(orbital_occupations) == orbital_occupations
         assert sorted(partition.configurations) == partition.configurations
         assert all(sum(configuration.configuration) == interaction.model_space_neutron.n_valence_nucleons for configuration in partition.configurations)
     
@@ -259,6 +252,7 @@ def calculate_all_possible_pairs(
                     [(idx_1, idx_2)]*occ_1*occ_2
                 )
 
+    configuration_pair_permutation_indices.sort()
     timing = time.perf_counter() - timing
     timings.calculate_all_possible_pairs += timing
 
