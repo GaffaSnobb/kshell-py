@@ -176,7 +176,7 @@ def calculate_all_possible_orbital_occupations(
 
 def calculate_all_possible_pairs(
     configuration: tuple[int],
-    M_target: int,
+    M_target: int | None,
 ) -> list[tuple[int, int]]:
     """
     Calculate all the possible choices of two nucleons from some
