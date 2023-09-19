@@ -2,12 +2,10 @@ flags: dict[str, bool] = {
     "debug": False,
 }
 clebsch_gordan: dict[tuple[int, int, int, int, int, int], float] = {
-    """
-    (j1, m1, j2, m2, j, m), all j and m values are stored as 2*j and 2*m
-    to avoid fractions. I have stored 0 values instead of using
-    dict.get((j1, m1, j2, m2, j, m), 0) because I want it to raise a
-    KeyError if something is wrong.
-    """
+    # (j1, m1, j2, m2, j, m), all j and m values are stored as 2*j and 2*m
+    # to avoid fractions. I have stored 0 values instead of using
+    # dict.get((j1, m1, j2, m2, j, m), 0) because I want it to raise a
+    # KeyError if something is wrong.
     ( 3, -3,  3, -3,  0,  0): 0.0,
     ( 3, -3,  3, -1,  0,  0): 0.0,
     ( 3, -3,  3,  1,  0,  0): 0.0,
