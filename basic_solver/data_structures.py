@@ -1,6 +1,86 @@
 from dataclasses import dataclass, field
 
 @dataclass(slots=True)
+class Indices:
+    """
+    Attributes
+    ----------
+    orbital_idx_to_m_idx_map : list[tuple[int, ...]]
+        Map the index of an orbital in a model space to the magnetic
+        substate indices of that orbital. How the orbitals are ordered
+        is defined by the interaction file (.snt). For example, in w.snt
+        the indices are as follows:
+
+            0 = p 0d_3/2
+            1 = p 0d_5/2
+            2 = p 1s_1/2
+            3 = n 0d_3/2
+            4 = n 0d_5/2
+            5 = n 1s_1/2
+
+        Please note that I have changed the indices to start at 0 while
+        in the actual interaction file the indices start at 1. This
+        means that orbital 0 (d3/2) has four magnetic substates and thus
+
+            orbital_idx_to_m_idx_map[0] = (0, 1, 2, 3)
+            orbital_idx_to_m_idx_map[1] = (0, 1, 2, 3, 4, 5)
+            orbital_idx_to_m_idx_map[2] = (0, 1)
+            ...
+
+    orbital_m_pair_to_composite_m_idx_map : dict[tuple[int, int], int]
+        Map a pair of (orbital index, m substate index) to a composite
+        m substate index. Please consider the following scheme sd model
+        space scheme:
+
+                          10    11        
+                        -  O  -  O  -             s1/2: 2
+                         -1/2   1/2
+
+               4     5     6     7     8     9    
+            -  O  -  O  -  O  -  O  -  O  -  O    d5/2: 1
+             -5/2  -3/2  -1/2   1/2   3/2   5/2
+
+                     0     1     2     3
+                  -  O  -  O  -  O  -  O  -       d3/2: 0
+                   -3/2  -1/2   1/2   3/2
+
+        The orbitals are indexed 0, 1, 2. The m substates are indexed by
+        a composite / cumulative / whatever you wanna call it, m
+        substate index, 0, 1, ..., 11. This map translates the orbital
+        index and the orbital's 'local' m substate index into the
+        composite m substate index. The 'local' m indices are for d3/2,
+        d5/2, s1/2 respectively,
+
+            [0, 1, 2, 3],
+            [0, 1, 2, 3, 4, 5],
+            [0, 1].
+
+        orbital_idx_to_j_map : list[int]
+            Map the index of an orbital to its 2*j value. Considering
+            the above scheme,
+
+                orbital_idx_to_j_map = [3, 5, 1]
+
+        m_composite_idx_to_m_map : list[int]
+            Map a composite m index to the 2*m value it corresponds to.
+            Considering the above scheme,
+
+                m_composite_idx_to_m_map = [
+                    -3, -1, +1, +3, -5, -3, -1, +1, +3, +5, -1, +1,
+                ]
+
+    """
+    orbital_idx_to_m_idx_map: list[tuple[int, ...]] = field(default_factory=list)
+    orbital_m_pair_to_composite_m_idx_map: dict[tuple[int, int], int] = field(default_factory=dict)
+    orbital_idx_to_j_map: list[int] = field(default_factory=list)
+    m_composite_idx_to_m_map: list[int] = field(default_factory=list)
+
+@dataclass(slots=True)
+class Interaction:
+    spe: list[float]
+    tbme: dict[tuple[int, int, int, int, int], float]
+
+@dataclass(slots=True)
 class Timing:
     """
     All timing values are in seconds and are named identically as the
