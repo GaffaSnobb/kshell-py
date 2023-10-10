@@ -1,6 +1,8 @@
 from functools import cache
 from sympy.physics.quantum.cg import CG
 from scipy.special import comb
+from data_structures import Indices
+from kshell_utilities.data_structures import Interaction
 
 @cache
 def n_choose_k(n, k):
@@ -51,3 +53,25 @@ def generate_clebsh_gordan_coefficients():
                                     m3 = m3/2,
                                 )
                                 # outfile.write(f"({j1:2}, {m1:2}, {j2:2}, {m2:2}, {j3:2}, {m3:2}): {float(cg_creation.doit())},\n")
+
+def generate_indices(interaction: Interaction) -> Indices:
+    """
+    Generate values for all the attributes of the Indices data
+    structure.
+    """
+    indices: Indices = Indices()
+    indices.m_composite_idx_to_m_map = interaction.model_space_neutron.all_jz_values
+
+    m_composite_idx_counter = 0
+    for orb_idx, orbital in enumerate(interaction.model_space_neutron.orbitals):
+        indices.orbital_idx_to_m_idx_map.append(tuple(range(orbital.degeneracy)))
+        indices.orbital_idx_to_j_map.append(orbital.j)
+
+        for m_idx in range(orbital.degeneracy):
+            indices.orbital_m_pair_to_composite_m_idx_map[(orb_idx, m_idx)] = m_composite_idx_counter
+            m_composite_idx_counter += 1
+
+    return indices
+
+
+    
