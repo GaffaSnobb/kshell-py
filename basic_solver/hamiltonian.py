@@ -3,67 +3,12 @@ import numpy as np
 from kshell_utilities.data_structures import Interaction
 from basis import calculate_m_basis_states
 from parameters import clebsch_gordan
-
-orbital_idx_to_m_idx_map = [
-    range(4),   # d3/2 has 4 m substates
-    range(6),
-    range(2),
-]
-orbital_m_pair_to_composite_m_idx_map = {
-    (0, 0): 0,
-    (0, 1): 1,
-    (0, 2): 2,
-    (0, 3): 3,
-    (1, 0): 4,
-    (1, 1): 5,
-    (1, 2): 6,
-    (1, 3): 7,
-    (1, 4): 8,
-    (1, 5): 9,
-    (2, 0): 10,
-    (2, 1): 11,
-}
-
-j_idx_to_j_map = [3, 5, 1] # 0 is 3/2, 1 is 5/2, 0 is s1/2
-
-m_indices = [
-    range(4),   # d3/2 has 4 m substates
-    range(6),
-    range(2),
-]
-
-orbital_m_pair_to_m_idx = {
-    (0, 0): 0,
-    (0, 1): 1,
-    (0, 2): 2,
-    (0, 3): 3,
-    (1, 0): 4,
-    (1, 1): 5,
-    (1, 2): 6,
-    (1, 3): 7,
-    (1, 4): 8,
-    (1, 5): 9,
-    (2, 0): 10,
-    (2, 1): 11,
-}
-
-m_comp_idx_to_m_map = {
-    0:  -3,
-    1:  -1,
-    2:  +1,
-    3:  +3,
-    4:  -5,
-    5:  -3,
-    6:  -1,
-    7:  +1,
-    8:  +3,
-    9:  +5,
-    10: -1,
-    11: +1
-}
+from tools import generate_indices
+from data_structures import Indices
 
 def calculate_onebody_matrix_element(
     interaction: Interaction,
+    indices: Indices,
     left_state: tuple[int, ...],
     right_state: tuple[int, ...],
 ) -> float:
@@ -71,8 +16,7 @@ def calculate_onebody_matrix_element(
     onebody_res: float = 0.0
     left_state_copy = list(left_state)  # I want this as a list so that I can perform list comparisons. Will not be modified.
 
-    # for creation_orb_idx in range(interaction.model_space_neutron.n_orbitals):
-    for creation_orb_idx in range(3):
+    for creation_orb_idx in range(interaction.model_space_neutron.n_orbitals):
         """
         More generally, there should also be a loop over the same values
         for annihilation_idx, but the SPEs for most, if not all of the
@@ -81,7 +25,7 @@ def calculate_onebody_matrix_element(
         """
         annihilation_orb_idx = creation_orb_idx
     
-        for creation_m_idx in orbital_idx_to_m_idx_map[creation_orb_idx]:
+        for creation_m_idx in indices.orbital_idx_to_m_idx_map[creation_orb_idx]:
             """
             Here is an overview of the indices of the sd model space:
 
@@ -123,14 +67,14 @@ def calculate_onebody_matrix_element(
                 ...
                 (1, 0): 4   # Orbital 1 is d5/2, m index 0 is -5/2.
             """
-            creation_comp_m_idx = orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx, creation_m_idx)]
+            creation_comp_m_idx = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx, creation_m_idx)]
             
-            for annihilation_m_idx in orbital_idx_to_m_idx_map[annihilation_orb_idx]:
+            for annihilation_m_idx in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx]:
                 """
                 Same translation for the annihilation_m_idx as for the
                 creation.
                 """
-                annihilation_comp_m_idx = orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx, annihilation_m_idx)]
+                annihilation_comp_m_idx = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx, annihilation_m_idx)]
 
                 new_right_state = list(right_state)
                 
@@ -185,6 +129,7 @@ def calculate_onebody_matrix_element(
 
 def calculate_twobody_matrix_element(
     interaction: Interaction,
+    indices: Indices,
     left_state: tuple[int, ...],
     right_state: tuple[int, ...],
 ) -> float:
@@ -198,12 +143,12 @@ def calculate_twobody_matrix_element(
                 for annihilation_orb_idx_1 in range(annihilation_orb_idx_0, n_orbitals):
 
                     j_min = max(
-                        abs(j_idx_to_j_map[creation_orb_idx_0] - j_idx_to_j_map[creation_orb_idx_1]),
-                        abs(j_idx_to_j_map[annihilation_orb_idx_0] - j_idx_to_j_map[annihilation_orb_idx_1]),
+                        abs(indices.orbital_idx_to_j_map[creation_orb_idx_0] - indices.orbital_idx_to_j_map[creation_orb_idx_1]),
+                        abs(indices.orbital_idx_to_j_map[annihilation_orb_idx_0] - indices.orbital_idx_to_j_map[annihilation_orb_idx_1]),
                     )
                     j_max = min(
-                        j_idx_to_j_map[creation_orb_idx_0] + j_idx_to_j_map[creation_orb_idx_1],
-                        j_idx_to_j_map[annihilation_orb_idx_0] + j_idx_to_j_map[annihilation_orb_idx_1],
+                        indices.orbital_idx_to_j_map[creation_orb_idx_0] + indices.orbital_idx_to_j_map[creation_orb_idx_1],
+                        indices.orbital_idx_to_j_map[annihilation_orb_idx_0] + indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
                     )
 
                     for j_coupled in range(j_min, j_max + 2, 2):
@@ -251,17 +196,17 @@ def calculate_twobody_matrix_element(
                             
                             annihilation_results = []
                             
-                            for annihilation_m_idx_0 in m_indices[annihilation_orb_idx_0]:
+                            for annihilation_m_idx_0 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_0]:
                                 """
                                 See the docstrings in
                                 calculate_onebody_matrix_element for a
                                 description on whats going on with these
                                 indices.
                                 """
-                                annihilation_comp_m_idx_0 = orbital_m_pair_to_m_idx[(annihilation_orb_idx_0, annihilation_m_idx_0)]
+                                annihilation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_0, annihilation_m_idx_0)]
                                 
-                                for annihilation_m_idx_1 in m_indices[annihilation_orb_idx_1]:
-                                    annihilation_comp_m_idx_1 = orbital_m_pair_to_m_idx[(annihilation_orb_idx_1, annihilation_m_idx_1)]
+                                for annihilation_m_idx_1 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_1]:
+                                    annihilation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_1, annihilation_m_idx_1)]
 
                                     new_right_state = list(right_state)
 
@@ -278,10 +223,10 @@ def calculate_twobody_matrix_element(
                                     assert len(new_right_state) == 0    # Sanity check.
 
                                     cg_annihilation = clebsch_gordan[(
-                                        j_idx_to_j_map[annihilation_orb_idx_0],
-                                        m_comp_idx_to_m_map[annihilation_comp_m_idx_0],
-                                        j_idx_to_j_map[annihilation_orb_idx_1],
-                                        m_comp_idx_to_m_map[annihilation_comp_m_idx_1],
+                                        indices.orbital_idx_to_j_map[annihilation_orb_idx_0],
+                                        indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_0],
+                                        indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
+                                        indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_1],
                                         j_coupled,
                                         m_coupled,
                                     )]
@@ -293,17 +238,17 @@ def calculate_twobody_matrix_element(
                             # Creation term:
                             creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))  # TODO: Move this!
 
-                            for creation_m_idx_0 in m_indices[creation_orb_idx_0]:
-                                creation_comp_m_idx_0 = orbital_m_pair_to_m_idx[(creation_orb_idx_0, creation_m_idx_0)]
+                            for creation_m_idx_0 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_0]:
+                                creation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_0, creation_m_idx_0)]
 
-                                for creation_m_idx_1 in m_indices[creation_orb_idx_1]:
-                                    creation_comp_m_idx_1 = orbital_m_pair_to_m_idx[(creation_orb_idx_1, creation_m_idx_1)]
+                                for creation_m_idx_1 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_1]:
+                                    creation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_1, creation_m_idx_1)]
 
                                     cg_creation = clebsch_gordan[(
-                                        j_idx_to_j_map[creation_orb_idx_0],
-                                        m_comp_idx_to_m_map[creation_comp_m_idx_0],
-                                        j_idx_to_j_map[creation_orb_idx_1],
-                                        m_comp_idx_to_m_map[creation_comp_m_idx_1],
+                                        indices.orbital_idx_to_j_map[creation_orb_idx_0],
+                                        indices.m_composite_idx_to_m_map[creation_comp_m_idx_0],
+                                        indices.orbital_idx_to_j_map[creation_orb_idx_1],
+                                        indices.m_composite_idx_to_m_map[creation_comp_m_idx_1],
                                         j_coupled,
                                         m_coupled,
                                     )]
@@ -332,12 +277,9 @@ def create_hamiltonian(
 ) -> np.ndarray:
     """
     """
-
-
+    indices: Indices = generate_indices(interaction=interaction)
     basis_states = calculate_m_basis_states(interaction=interaction, M_target=0)
-    print(basis_states)
     m_dim = len(basis_states)   # This is the 'M-scheme dimension'. The H matrix, if represented in its entirety, is of dimensions m_dim x m_dim.
-
     H = np.zeros((m_dim, m_dim), dtype=np.float64)
 
     for left_idx in range(m_dim):
@@ -345,11 +287,13 @@ def create_hamiltonian(
 
             H[left_idx, right_idx] += calculate_onebody_matrix_element(
                 interaction = interaction,
+                indices = indices,
                 left_state = basis_states[left_idx],
                 right_state = basis_states[right_idx],
             )
             H[left_idx, right_idx] += calculate_twobody_matrix_element(
                 interaction = interaction,
+                indices = indices,
                 left_state = basis_states[left_idx],
                 right_state = basis_states[right_idx],
             )
