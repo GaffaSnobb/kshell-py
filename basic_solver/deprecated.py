@@ -329,3 +329,35 @@ if __name__ == "__main__":
     flags["debug"] = True
     main()
     print(timings)
+
+
+def load_interaction(
+    path: str,
+) -> Interaction:
+
+    single_particle_energies: list[float] = []
+    twobody_matrix_elements: dict[tuple[int, int, int, int, int], float] = {}
+
+    with open(f"{path}/w_spe.txt", "r") as infile:
+        for line in infile:
+            tmp = line.split()
+            single_particle_energies.append(float(tmp[-1]))
+
+    with open(f"{path}/w_tbme.txt", "r") as infile:
+        for line in infile:
+            orb_0, orb_1, orb_2, orb_3, j, tbme = line.split()
+            orb_0 = int(orb_0)
+            orb_1 = int(orb_1)
+            orb_2 = int(orb_2)
+            orb_3 = int(orb_3)
+            j = int(j)*2
+            tbme = float(tbme)
+
+            twobody_matrix_elements[(orb_0, orb_1, orb_2, orb_3, j)] = tbme
+            twobody_matrix_elements[(orb_2, orb_3, orb_0, orb_1, j)] = tbme
+
+    interaction: Interaction = Interaction(
+        spe = single_particle_energies,
+        tbme = twobody_matrix_elements,
+    )
+    return interaction
