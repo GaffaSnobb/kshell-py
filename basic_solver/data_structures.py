@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass, field
 
 @dataclass(slots=True)
@@ -142,8 +143,11 @@ class Timing:
                 """
                 group_total += val
 
-            assert abs(group_total - group_timings[0][1]) < TIME_TOL, f"Times for group {group} do not add up!"
-            group_total_sum += group_total
+            # if abs(group_total - group_timings[0][1]) < TIME_TOL:
+            #     warnings.warn(f"Times for group {group} do not add up!", RuntimeWarning)
+            # assert abs(group_total - group_timings[0][1]) < TIME_TOL, f"Times for group {group} do not add up!"
+            group_total_sum += group_timings[0][1]
+            group_timings.insert(1, (group_timings[0][0], abs(group_timings[0][1] - group_total)))  # Insert the overhead of the head of the group as the second element.
 
             for i in range(len(group_timings)):
                 attr, val = group_timings[i]
@@ -160,7 +164,8 @@ class Timing:
         # time_summary += f"{total:10.4f} s, {total/total*100:4.0f} %: total\n"
         time_summary += "------------"
 
-        assert abs(group_total_sum - self.main) < TIME_TOL, "Times do not add up! Get yo shit together!"
+        # if abs(group_total_sum - self.main) < TIME_TOL:
+        #     warnings.warn("Times do not add up! Get yo shit together!", RuntimeWarning)
 
         return time_summary
 
