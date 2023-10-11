@@ -45,10 +45,10 @@ def calculate_m_basis_states(
     """
 
     timing = time.perf_counter()
-    # Generate all combinations of m value indices of length n_valence_nucleons.
+    # Generate all combinations of m substate indices of length n_valence_nucleons.
     index_combinations = combinations(
-        range(len(interaction.model_space_neutron.all_jz_values)),
-        interaction.model_space_neutron.n_valence_nucleons,
+        iterable = range(len(interaction.model_space_neutron.all_jz_values)),
+        r = interaction.model_space_neutron.n_valence_nucleons,
     )
     
     # Filter combinations so that combinations with m_0 + m_1 + ... == M_target are kept.
