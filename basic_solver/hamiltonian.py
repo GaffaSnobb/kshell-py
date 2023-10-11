@@ -133,7 +133,11 @@ def twobody_annihilation_term(
     annihilation_orb_idx_1: int,
     j_coupled: int,
     m_coupled: int,
-):
+) -> list[tuple[float, list[int]]]:
+    """
+    All calculations related to the annihilation term in the two-body
+    part of the Hamiltonian.
+    """
     annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))
     
     annihilation_results: list[tuple[float, list[int]]] = []
@@ -182,6 +186,60 @@ def twobody_annihilation_term(
             annihilation_results.append((annihilation_sign*annihilation_norm*cg_annihilation, new_right_state))
 
     return annihilation_results
+
+def twobody_creation_term(
+    indices: Indices,
+    annihilation_results: list[tuple[float, list[int]]],
+    left_state: tuple[int, ...],
+    creation_orb_idx_0: int,
+    creation_orb_idx_1: int,
+    j_coupled: int,
+    m_coupled: int,
+) -> float:
+    """
+    All calculations related to the creation term in the two-body part
+    of the Hamiltonian.
+    """
+    creation_res: float = 0.0
+    creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))  # TODO: Move this!
+
+    for creation_m_idx_0 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_0]:
+        creation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_0, creation_m_idx_0)]
+
+        for creation_m_idx_1 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_1]:
+            creation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_1, creation_m_idx_1)]
+
+            cg_creation = clebsch_gordan[(
+                indices.orbital_idx_to_j_map[creation_orb_idx_0],
+                indices.m_composite_idx_to_m_map[creation_comp_m_idx_0],
+                indices.orbital_idx_to_j_map[creation_orb_idx_1],
+                indices.m_composite_idx_to_m_map[creation_comp_m_idx_1],
+                j_coupled,
+                m_coupled,
+            )]
+            if cg_creation == 0: continue
+            
+            for annihilation_coeff, right_state in annihilation_results:
+
+                new_right_state = right_state.copy()
+                tmp_left_state = list(left_state)   # TODO: Move this!
+
+                if creation_comp_m_idx_1 in new_right_state: continue
+                created_substate_idx = bisect_right(a=new_right_state, x=creation_comp_m_idx_1)
+                new_right_state.insert(created_substate_idx, creation_comp_m_idx_1)
+                creation_sign = (-1)**created_substate_idx
+
+                if creation_comp_m_idx_0 in new_right_state: continue
+                created_substate_idx = bisect_right(a=new_right_state, x=creation_comp_m_idx_0)
+                new_right_state.insert(created_substate_idx, creation_comp_m_idx_0)
+                creation_sign *= (-1)**created_substate_idx
+
+                if tmp_left_state != new_right_state:
+                    continue
+                
+                creation_res += creation_sign*creation_norm*cg_creation*annihilation_coeff
+
+    return creation_res
 
 def calculate_twobody_matrix_element(
     interaction: Interaction,
@@ -248,7 +306,6 @@ def calculate_twobody_matrix_element(
                                 """
                                 continue
 
-                            # Annihilation term:
                             annihilation_results = twobody_annihilation_term(
                                 interaction = interaction,
                                 indices = indices,
@@ -258,91 +315,54 @@ def calculate_twobody_matrix_element(
                                 j_coupled = j_coupled,
                                 m_coupled = m_coupled,
                             )
-                            # annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))
-                            
-                            # annihilation_results: list[tuple[float, list[int]]] = []
-                            
-                            # for annihilation_m_idx_0 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_0]:
-                            #     """
-                            #     See the docstrings in
-                            #     calculate_onebody_matrix_element for a
-                            #     description on whats going on with these
-                            #     indices.
-                            #     """
-                            #     annihilation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_0, annihilation_m_idx_0)]
-                                
-                            #     for annihilation_m_idx_1 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_1]:
-                            #         annihilation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_1, annihilation_m_idx_1)]
+                            twobody_res += tbme*twobody_creation_term(
+                                indices = indices,
+                                annihilation_results = annihilation_results,
+                                left_state = left_state,
+                                creation_orb_idx_0 = creation_orb_idx_0,
+                                creation_orb_idx_1 = creation_orb_idx_1,
+                                j_coupled = j_coupled,
+                                m_coupled = m_coupled,
+                            )
 
-                            #         new_right_state = list(right_state)
+                            # Creation term:
+                            # creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))  # TODO: Move this!
 
-                            #         if annihilation_comp_m_idx_0 not in new_right_state: continue
+                            # for creation_m_idx_0 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_0]:
+                            #     creation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_0, creation_m_idx_0)]
 
-                            #         annihilation_idx = new_right_state.index(annihilation_comp_m_idx_0)
-                            #         new_right_state.pop(annihilation_idx)
-                            #         annihilation_sign = (-1)**annihilation_idx
+                            #     for creation_m_idx_1 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_1]:
+                            #         creation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_1, creation_m_idx_1)]
 
-                            #         if annihilation_comp_m_idx_1 not in new_right_state: continue
-
-                            #         # new_right_state.remove(annihilation_comp_m_idx_1)
-
-                            #         annihilation_idx = new_right_state.index(annihilation_comp_m_idx_1)
-                            #         new_right_state.pop(annihilation_idx)
-                            #         annihilation_sign *= (-1)**annihilation_idx
-
-                            #         assert len(new_right_state) == (interaction.model_space_neutron.n_valence_nucleons - 2)    # Sanity check.
-
-                            #         cg_annihilation = clebsch_gordan[(
-                            #             indices.orbital_idx_to_j_map[annihilation_orb_idx_0],
-                            #             indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_0],
-                            #             indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
-                            #             indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_1],
+                            #         cg_creation = clebsch_gordan[(
+                            #             indices.orbital_idx_to_j_map[creation_orb_idx_0],
+                            #             indices.m_composite_idx_to_m_map[creation_comp_m_idx_0],
+                            #             indices.orbital_idx_to_j_map[creation_orb_idx_1],
+                            #             indices.m_composite_idx_to_m_map[creation_comp_m_idx_1],
                             #             j_coupled,
                             #             m_coupled,
                             #         )]
-
-                            #         if cg_annihilation == 0: continue
-
-                            #         annihilation_results.append((annihilation_sign*annihilation_norm*cg_annihilation, new_right_state))
-
-                            # Creation term:
-                            creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))  # TODO: Move this!
-
-                            for creation_m_idx_0 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_0]:
-                                creation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_0, creation_m_idx_0)]
-
-                                for creation_m_idx_1 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_1]:
-                                    creation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_1, creation_m_idx_1)]
-
-                                    cg_creation = clebsch_gordan[(
-                                        indices.orbital_idx_to_j_map[creation_orb_idx_0],
-                                        indices.m_composite_idx_to_m_map[creation_comp_m_idx_0],
-                                        indices.orbital_idx_to_j_map[creation_orb_idx_1],
-                                        indices.m_composite_idx_to_m_map[creation_comp_m_idx_1],
-                                        j_coupled,
-                                        m_coupled,
-                                    )]
-                                    if cg_creation == 0: continue
+                            #         if cg_creation == 0: continue
                                     
-                                    for annihilation_coeff, new_right_statee in annihilation_results:
+                            #         for annihilation_coeff, new_right_statee in annihilation_results:
 
-                                        new_right_state_copy = new_right_statee.copy()  # TODO: Yes, super bad name to avoid namespace collision, will fix.
-                                        tmp_left_state = list(left_state)   # TODO: Move this!
+                            #             new_right_state_copy = new_right_statee.copy()  # TODO: Yes, super bad name to avoid namespace collision, will fix.
+                            #             tmp_left_state = list(left_state)   # TODO: Move this!
 
-                                        if creation_comp_m_idx_1 in new_right_state_copy: continue
-                                        created_substate_idx = bisect_right(a=new_right_state_copy, x=creation_comp_m_idx_1)
-                                        new_right_state_copy.insert(created_substate_idx, creation_comp_m_idx_1)
-                                        creation_sign = (-1)**created_substate_idx
+                            #             if creation_comp_m_idx_1 in new_right_state_copy: continue
+                            #             created_substate_idx = bisect_right(a=new_right_state_copy, x=creation_comp_m_idx_1)
+                            #             new_right_state_copy.insert(created_substate_idx, creation_comp_m_idx_1)
+                            #             creation_sign = (-1)**created_substate_idx
 
-                                        if creation_comp_m_idx_0 in new_right_state_copy: continue
-                                        created_substate_idx = bisect_right(a=new_right_state_copy, x=creation_comp_m_idx_0)
-                                        new_right_state_copy.insert(created_substate_idx, creation_comp_m_idx_0)
-                                        creation_sign *= (-1)**created_substate_idx
+                            #             if creation_comp_m_idx_0 in new_right_state_copy: continue
+                            #             created_substate_idx = bisect_right(a=new_right_state_copy, x=creation_comp_m_idx_0)
+                            #             new_right_state_copy.insert(created_substate_idx, creation_comp_m_idx_0)
+                            #             creation_sign *= (-1)**created_substate_idx
 
-                                        if tmp_left_state != new_right_state_copy:
-                                            continue
+                            #             if tmp_left_state != new_right_state_copy:
+                            #                 continue
                                         
-                                        twobody_res += creation_sign*tbme*creation_norm*cg_creation*annihilation_coeff
+                            #             twobody_res += creation_sign*tbme*creation_norm*cg_creation*annihilation_coeff
 
     timing = time.perf_counter() - timing
     timings.calculate_twobody_matrix_element_004 += timing
