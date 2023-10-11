@@ -1,5 +1,7 @@
-import time
+import time, sys
+from bisect import bisect_right
 from math import sqrt
+from itertools import combinations
 import numpy as np
 from kshell_utilities.data_structures import Interaction
 from basis import calculate_m_basis_states
@@ -110,18 +112,12 @@ def calculate_onebody_matrix_element(
                 new_right_state.pop(annihalated_substate_idx)
 
                 if creation_comp_m_idx in new_right_state: continue
+                
+                created_substate_idx = bisect_right(a=new_right_state, x=creation_comp_m_idx)
+                new_right_state.insert(created_substate_idx, creation_comp_m_idx)
+                creation_sign = (-1)**created_substate_idx
 
-                new_right_state.insert(0, creation_comp_m_idx)
-
-                if left_state_copy == new_right_state:
-                    """
-                    NOTE: This only works for two valence particles. Has
-                    to be generalised for N valence particles.
-                    """
-                    creation_sign = 1
-                elif left_state_copy == new_right_state[::-1]:
-                    creation_sign = -1
-                else:
+                if left_state_copy != new_right_state:
                     continue
 
                 onebody_res += annihilation_sign*creation_sign*interaction.spe[creation_orb_idx] # Or annihilation_orb_idx, they are the same.
@@ -222,7 +218,11 @@ def calculate_twobody_matrix_element(
 
                                     if annihilation_comp_m_idx_1 not in new_right_state: continue
 
-                                    new_right_state.remove(annihilation_comp_m_idx_1)
+                                    # new_right_state.remove(annihilation_comp_m_idx_1)
+
+                                    annihilation_idx = new_right_state.index(annihilation_comp_m_idx_1)
+                                    new_right_state.pop(annihilation_idx)
+                                    annihilation_sign *= (-1)**annihilation_idx
 
                                     assert len(new_right_state) == 0    # Sanity check.
 
@@ -237,7 +237,7 @@ def calculate_twobody_matrix_element(
 
                                     if cg_annihilation == 0: continue
 
-                                    annihilation_results.append(annihilation_sign*annihilation_norm*cg_annihilation)
+                                    annihilation_results.append((annihilation_sign*annihilation_norm*cg_annihilation, new_right_state))
 
                             # Creation term:
                             creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))  # TODO: Move this!
@@ -257,22 +257,39 @@ def calculate_twobody_matrix_element(
                                         m_coupled,
                                     )]
                                     if cg_creation == 0: continue
-
-                                    new_right_state = []
-                                    tmp_left_state = list(left_state)   # TODO: Move this!
-
-                                    new_right_state.insert(0, creation_comp_m_idx_1)
-                                    new_right_state.insert(0, creation_comp_m_idx_0)
-
-                                    if tmp_left_state == new_right_state:
-                                        creation_sign = 1
-                                    elif tmp_left_state == new_right_state[::-1]:
-                                        creation_sign = -1
-                                    else:
-                                        continue
                                     
-                                    for annihilation_result in annihilation_results:
-                                        twobody_res += creation_sign*tbme*creation_norm*cg_creation*annihilation_result
+                                    for annihilation_coeff, new_right_statee in annihilation_results:
+
+                                        new_right_state_copy = new_right_statee.copy()
+                                        tmp_left_state = list(left_state)   # TODO: Move this!
+
+                                        if creation_comp_m_idx_1 in new_right_state_copy: continue
+                                        created_substate_idx = bisect_right(a=new_right_state_copy, x=creation_comp_m_idx_1)
+                                        new_right_state_copy.insert(created_substate_idx, creation_comp_m_idx_1)
+                                        creation_sign = (-1)**created_substate_idx
+
+                                        if creation_comp_m_idx_0 in new_right_state_copy: continue
+                                        created_substate_idx = bisect_right(a=new_right_state_copy, x=creation_comp_m_idx_0)
+                                        new_right_state_copy.insert(created_substate_idx, creation_comp_m_idx_0)
+                                        creation_sign *= (-1)**created_substate_idx
+                                        
+                                        # new_right_state_copy.insert(0, creation_comp_m_idx_1)
+                                        # new_right_state_copy.insert(0, creation_comp_m_idx_0)
+
+                                        if tmp_left_state != new_right_state_copy:
+                                            continue
+
+                                        # new_right_state_copy.insert(0, creation_comp_m_idx_1)
+                                        # new_right_state_copy.insert(0, creation_comp_m_idx_0)
+
+                                        # if tmp_left_state == new_right_state_copy:
+                                        #     creation_sign = 1
+                                        # elif tmp_left_state == new_right_state_copy[::-1]:
+                                        #     creation_sign = -1
+                                        # else:
+                                        #     continue
+                                        
+                                        twobody_res += creation_sign*tbme*creation_norm*cg_creation*annihilation_coeff
 
     timing = time.perf_counter() - timing
     timings.calculate_twobody_matrix_element_004 += timing
@@ -285,11 +302,35 @@ def create_hamiltonian(
     """
     timing = time.perf_counter()
 
+    if interaction.model_space.n_valence_nucleons%2 == 0:
+        """
+        For an even number of valence nucleons, the M = 0 basis states
+        are enough to describe all angular momenta.
+        """
+        M_target = 0
+    else:
+        """
+        For odd-numbered, M = 1/2 is enough, but remember, all angular
+        momenta in this code are multiplied by 2.
+        """
+        M_target = 1
+    
     indices: Indices = generate_indices(interaction=interaction)
-    basis_states = calculate_m_basis_states(interaction=interaction, M_target=0)
+    basis_states = calculate_m_basis_states(interaction=interaction, M_target=M_target)
+    print(basis_states)
+    # calculate_basis_states_m_pairs(basis_states=basis_states)
+    # print(basis_states)
+    basis_state_pair_indices = tuple(combinations(
+        iterable = range(interaction.model_space_neutron.n_valence_nucleons),
+        r = 2,
+    ))
+    # print(basis_states[0])
+    # print(tuple(basis_state_pair_indices))
+    # print(basis_states[0][basis_state_pair_indices[0][1]])
+    # sys.exit()
     m_dim = len(basis_states)   # This is the 'M-scheme dimension'. The H matrix, if represented in its entirety, is of dimensions m_dim x m_dim.
+    print(f"{m_dim = }")
     H = np.zeros((m_dim, m_dim), dtype=np.float64)
-
     for left_idx in range(m_dim):
         for right_idx in range(m_dim):
 
