@@ -86,27 +86,81 @@ class Timing:
     All timing values are in seconds and are named identically as the
     function they represent.
     """
-    fill_orbitals: float = -1.0
-    calculate_all_possible_orbital_occupations: float = -1.0
-    calculate_all_possible_pairs: float = -1.0
-    create_hamiltonian: float = -1.0
-    main: float = -1.0
+    # fill_orbitals: float = -1.0
+    # calculate_all_possible_orbital_occupations: float = -1.0
+    # calculate_all_possible_pairs: float = -1.0
+    calculate_onebody_matrix_element_003: float = 0.0
+    calculate_twobody_matrix_element_004: float = 0.0
+    generate_indices_001: float = 0.0
+    calculate_m_basis_states_002: float = 0.0
+    create_hamiltonian_000: float = 0.0
+    main: float = 0.0
+
 
     def __str__(self):
-        total = sum(getattr(self, attr) for attr in self.__slots__ if ((getattr(self, attr) != -1) and (attr != "main")))
+        """
+        Return a nicely formatted time table.
+        """
+        groups = [0]            # The group IDs to be included in the table.
+        group_total_sum = 0.0   # The sum of all the group times (total program time).
+        TIME_TOL = 1e-3         # Tolerance for the assertions.
+        # total = sum(getattr(self, attr) for attr in self.__slots__ if ((getattr(self, attr) != 0) and (attr != "main")))
 
         time_summary: str = "------------\n"
 
-        for attr in self.__slots__:
-            val = getattr(self, attr)
-            if val == -1: continue
-            if attr == "main": continue
-            time_summary += f"{val:10.4f} s, {val*100/total:4.0f} %: {attr}\n"
+        for group in groups:
+            """
+            Timings are collected in groups. The attr in a group with
+            attr ID 0 is the 'head' of the group and all other attrs in
+            the same group should sum up to attr ID 0's time.
+            """
+            group_timings: list[tuple[str, int]] = []
+            
+            for attr in sorted(self.__slots__):
+                """
+                Fetch the attrs and their values for the current group.
+                """
+                if attr == "main":
+                    """
+                    Treat the main time separately.
+                    """
+                    continue
+                
+                attr_id = attr.split('_')[-1]
+                group_id = int(attr_id[0])
+                attr_id = int(attr_id[1:])
+                if group_id != group: continue
+                
+                val = getattr(self, attr)
+                group_timings.insert(attr_id, (attr, val))
 
-        time_summary += f"{total:10.4f} s, {total/total*100:4.0f} %: total\n"
+            group_total = 0.0
+            for attr, val in group_timings[1:]:
+                """
+                Sum up all the times of a group, except for the head of
+                the group which should be the total group time.
+                """
+                group_total += val
+
+            assert abs(group_total - group_timings[0][1]) < TIME_TOL, f"Times for group {group} do not add up!"
+            group_total_sum += group_total
+
+            for i in range(len(group_timings)):
+                attr, val = group_timings[i]
+                attr = attr[:-4]    # Remove the ID from the name.
+
+                if i != 0:
+                    """
+                    Make the sub-times indented.
+                    """
+                    time_summary += "    "
+
+                time_summary += f"{val*100/group_total:4.0f}% {val:10.4f}s: {attr}\n"
+
+        # time_summary += f"{total:10.4f} s, {total/total*100:4.0f} %: total\n"
         time_summary += "------------"
 
-        assert abs(total - self.main) < 1e-3, "Times do not add up! Get yo shit together!"
+        assert abs(group_total_sum - self.main) < TIME_TOL, "Times do not add up! Get yo shit together!"
 
         return time_summary
 
