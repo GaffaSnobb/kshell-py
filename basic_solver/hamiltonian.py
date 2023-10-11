@@ -1,7 +1,6 @@
 import time, sys
 from bisect import bisect_right
 from math import sqrt
-from itertools import combinations
 import numpy as np
 from kshell_utilities.data_structures import Interaction
 from basis import calculate_m_basis_states
@@ -126,6 +125,64 @@ def calculate_onebody_matrix_element(
     timings.calculate_onebody_matrix_element_003 += timing
     return onebody_res
 
+def twobody_annihilation_term(
+    interaction: Interaction,
+    indices: Indices,
+    right_state: tuple[int, ...],
+    annihilation_orb_idx_0: int,
+    annihilation_orb_idx_1: int,
+    j_coupled: int,
+    m_coupled: int,
+):
+    annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))
+    
+    annihilation_results: list[tuple[float, list[int]]] = []
+    
+    for annihilation_m_idx_0 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_0]:
+        """
+        See the docstrings in
+        calculate_onebody_matrix_element for a
+        description on whats going on with these
+        indices.
+        """
+        annihilation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_0, annihilation_m_idx_0)]
+        
+        for annihilation_m_idx_1 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_1]:
+            annihilation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_1, annihilation_m_idx_1)]
+
+            new_right_state = list(right_state)
+
+            if annihilation_comp_m_idx_0 not in new_right_state: continue
+
+            annihilation_idx = new_right_state.index(annihilation_comp_m_idx_0)
+            new_right_state.pop(annihilation_idx)
+            annihilation_sign = (-1)**annihilation_idx
+
+            if annihilation_comp_m_idx_1 not in new_right_state: continue
+
+            # new_right_state.remove(annihilation_comp_m_idx_1)
+
+            annihilation_idx = new_right_state.index(annihilation_comp_m_idx_1)
+            new_right_state.pop(annihilation_idx)
+            annihilation_sign *= (-1)**annihilation_idx
+
+            assert len(new_right_state) == (interaction.model_space_neutron.n_valence_nucleons - 2)    # Sanity check.
+
+            cg_annihilation = clebsch_gordan[(
+                indices.orbital_idx_to_j_map[annihilation_orb_idx_0],
+                indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_0],
+                indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
+                indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_1],
+                j_coupled,
+                m_coupled,
+            )]
+
+            if cg_annihilation == 0: continue
+
+            annihilation_results.append((annihilation_sign*annihilation_norm*cg_annihilation, new_right_state))
+
+    return annihilation_results
+
 def calculate_twobody_matrix_element(
     interaction: Interaction,
     indices: Indices,
@@ -192,52 +249,61 @@ def calculate_twobody_matrix_element(
                                 continue
 
                             # Annihilation term:
-                            annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))
+                            annihilation_results = twobody_annihilation_term(
+                                interaction = interaction,
+                                indices = indices,
+                                right_state = right_state,
+                                annihilation_orb_idx_0 = annihilation_orb_idx_0,
+                                annihilation_orb_idx_1 = annihilation_orb_idx_1,
+                                j_coupled = j_coupled,
+                                m_coupled = m_coupled,
+                            )
+                            # annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))
                             
-                            annihilation_results: list[tuple[float, list[int]]] = []
+                            # annihilation_results: list[tuple[float, list[int]]] = []
                             
-                            for annihilation_m_idx_0 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_0]:
-                                """
-                                See the docstrings in
-                                calculate_onebody_matrix_element for a
-                                description on whats going on with these
-                                indices.
-                                """
-                                annihilation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_0, annihilation_m_idx_0)]
+                            # for annihilation_m_idx_0 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_0]:
+                            #     """
+                            #     See the docstrings in
+                            #     calculate_onebody_matrix_element for a
+                            #     description on whats going on with these
+                            #     indices.
+                            #     """
+                            #     annihilation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_0, annihilation_m_idx_0)]
                                 
-                                for annihilation_m_idx_1 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_1]:
-                                    annihilation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_1, annihilation_m_idx_1)]
+                            #     for annihilation_m_idx_1 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_1]:
+                            #         annihilation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_1, annihilation_m_idx_1)]
 
-                                    new_right_state = list(right_state)
+                            #         new_right_state = list(right_state)
 
-                                    if annihilation_comp_m_idx_0 not in new_right_state: continue
+                            #         if annihilation_comp_m_idx_0 not in new_right_state: continue
 
-                                    annihilation_idx = new_right_state.index(annihilation_comp_m_idx_0)
-                                    new_right_state.pop(annihilation_idx)
-                                    annihilation_sign = (-1)**annihilation_idx
+                            #         annihilation_idx = new_right_state.index(annihilation_comp_m_idx_0)
+                            #         new_right_state.pop(annihilation_idx)
+                            #         annihilation_sign = (-1)**annihilation_idx
 
-                                    if annihilation_comp_m_idx_1 not in new_right_state: continue
+                            #         if annihilation_comp_m_idx_1 not in new_right_state: continue
 
-                                    # new_right_state.remove(annihilation_comp_m_idx_1)
+                            #         # new_right_state.remove(annihilation_comp_m_idx_1)
 
-                                    annihilation_idx = new_right_state.index(annihilation_comp_m_idx_1)
-                                    new_right_state.pop(annihilation_idx)
-                                    annihilation_sign *= (-1)**annihilation_idx
+                            #         annihilation_idx = new_right_state.index(annihilation_comp_m_idx_1)
+                            #         new_right_state.pop(annihilation_idx)
+                            #         annihilation_sign *= (-1)**annihilation_idx
 
-                                    assert len(new_right_state) == (interaction.model_space_neutron.n_valence_nucleons - 2)    # Sanity check.
+                            #         assert len(new_right_state) == (interaction.model_space_neutron.n_valence_nucleons - 2)    # Sanity check.
 
-                                    cg_annihilation = clebsch_gordan[(
-                                        indices.orbital_idx_to_j_map[annihilation_orb_idx_0],
-                                        indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_0],
-                                        indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
-                                        indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_1],
-                                        j_coupled,
-                                        m_coupled,
-                                    )]
+                            #         cg_annihilation = clebsch_gordan[(
+                            #             indices.orbital_idx_to_j_map[annihilation_orb_idx_0],
+                            #             indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_0],
+                            #             indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
+                            #             indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_1],
+                            #             j_coupled,
+                            #             m_coupled,
+                            #         )]
 
-                                    if cg_annihilation == 0: continue
+                            #         if cg_annihilation == 0: continue
 
-                                    annihilation_results.append((annihilation_sign*annihilation_norm*cg_annihilation, new_right_state))
+                            #         annihilation_results.append((annihilation_sign*annihilation_norm*cg_annihilation, new_right_state))
 
                             # Creation term:
                             creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))  # TODO: Move this!
@@ -289,6 +355,21 @@ def create_hamiltonian(
     """
     timing = time.perf_counter()
 
+    if interaction.tbme_mass_dependence_method == 0:
+        """
+        No mass dependence on the TBMEs
+        """
+        pass
+    
+    elif interaction.tbme_mass_dependence_method == 1:
+        """
+        The TBMEs need to be scaled according to mass dependence 1.
+        """
+        nucleus_mass = interaction.n_core_neutrons + interaction.n_core_protons + interaction.model_space.n_valence_nucleons
+        factor = (nucleus_mass/interaction.tbme_mass_dependence_denominator)**interaction.tbme_mass_dependence_exponent
+        for key in interaction.tbme:
+            interaction.tbme[key] *= factor
+
     if interaction.model_space.n_valence_nucleons%2 == 0:
         """
         For an even number of valence nucleons, the M = 0 basis states
@@ -297,27 +378,20 @@ def create_hamiltonian(
         M_target = 0
     else:
         """
-        For odd-numbered, M = 1/2 is enough, but remember, all angular
+        For odd-numbered M = 1/2 is enough, but remember, all angular
         momenta in this code are multiplied by 2.
         """
         M_target = 1
     
     indices: Indices = generate_indices(interaction=interaction)
     basis_states = calculate_m_basis_states(interaction=interaction, M_target=M_target)
-    print(basis_states)
-    # calculate_basis_states_m_pairs(basis_states=basis_states)
-    # print(basis_states)
-    basis_state_pair_indices = tuple(combinations(
-        iterable = range(interaction.model_space_neutron.n_valence_nucleons),
-        r = 2,
-    ))
-    # print(basis_states[0])
-    # print(tuple(basis_state_pair_indices))
-    # print(basis_states[0][basis_state_pair_indices[0][1]])
-    # sys.exit()
     m_dim = len(basis_states)   # This is the 'M-scheme dimension'. The H matrix, if represented in its entirety, is of dimensions m_dim x m_dim.
+    
+    print(basis_states)
     print(f"{m_dim = }")
+    
     H = np.zeros((m_dim, m_dim), dtype=np.float64)
+    
     for left_idx in range(m_dim):
         for right_idx in range(m_dim):
 
