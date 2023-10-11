@@ -1,10 +1,11 @@
+import time
 from math import sqrt
 import numpy as np
 from kshell_utilities.data_structures import Interaction
 from basis import calculate_m_basis_states
 from parameters import clebsch_gordan
 from tools import generate_indices
-from data_structures import Indices
+from data_structures import Indices, timings
 
 def calculate_onebody_matrix_element(
     interaction: Interaction,
@@ -12,7 +13,7 @@ def calculate_onebody_matrix_element(
     left_state: tuple[int, ...],
     right_state: tuple[int, ...],
 ) -> float:
-
+    timing = time.perf_counter()
     onebody_res: float = 0.0
     left_state_copy = list(left_state)  # I want this as a list so that I can perform list comparisons. Will not be modified.
 
@@ -125,6 +126,8 @@ def calculate_onebody_matrix_element(
 
                 onebody_res += annihilation_sign*creation_sign*interaction.spe[creation_orb_idx] # Or annihilation_orb_idx, they are the same.
 
+    timing = time.perf_counter() - timing
+    timings.calculate_onebody_matrix_element_003 += timing
     return onebody_res
 
 def calculate_twobody_matrix_element(
@@ -134,6 +137,7 @@ def calculate_twobody_matrix_element(
     right_state: tuple[int, ...],
 ) -> float:
     
+    timing = time.perf_counter()
     twobody_res: float = 0.0
     n_orbitals = interaction.model_space_neutron.n_orbitals # Just to make the name shorter.
     
@@ -270,6 +274,8 @@ def calculate_twobody_matrix_element(
                                     for annihilation_result in annihilation_results:
                                         twobody_res += creation_sign*tbme*creation_norm*cg_creation*annihilation_result
 
+    timing = time.perf_counter() - timing
+    timings.calculate_twobody_matrix_element_004 += timing
     return twobody_res
 
 def create_hamiltonian(
@@ -277,6 +283,8 @@ def create_hamiltonian(
 ) -> np.ndarray:
     """
     """
+    timing = time.perf_counter()
+
     indices: Indices = generate_indices(interaction=interaction)
     basis_states = calculate_m_basis_states(interaction=interaction, M_target=0)
     m_dim = len(basis_states)   # This is the 'M-scheme dimension'. The H matrix, if represented in its entirety, is of dimensions m_dim x m_dim.
@@ -298,4 +306,6 @@ def create_hamiltonian(
                 right_state = basis_states[right_idx],
             )
 
+    timing = time.perf_counter() - timing
+    timings.create_hamiltonian_000 = timing
     return H

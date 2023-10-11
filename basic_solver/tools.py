@@ -1,8 +1,10 @@
+import time
 from functools import cache
 from sympy.physics.quantum.cg import CG
 from scipy.special import comb
 from data_structures import Indices
 from kshell_utilities.data_structures import Interaction
+from data_structures import timings
 
 @cache
 def n_choose_k(n, k):
@@ -59,6 +61,7 @@ def generate_indices(interaction: Interaction) -> Indices:
     Generate values for all the attributes of the Indices data
     structure.
     """
+    timing = time.perf_counter()
     indices: Indices = Indices()
     indices.m_composite_idx_to_m_map = interaction.model_space_neutron.all_jz_values
 
@@ -71,7 +74,6 @@ def generate_indices(interaction: Interaction) -> Indices:
             indices.orbital_m_pair_to_composite_m_idx_map[(orb_idx, m_idx)] = m_composite_idx_counter
             m_composite_idx_counter += 1
 
+    timing = time.perf_counter() - timing
+    timings.generate_indices_001 = timing
     return indices
-
-
-    

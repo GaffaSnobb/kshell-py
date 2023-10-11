@@ -1,5 +1,7 @@
+import time
 from itertools import combinations
 from kshell_utilities.data_structures import Interaction
+from data_structures import timings
 
 def calculate_m_basis_states(
     interaction: Interaction,
@@ -42,6 +44,7 @@ def calculate_m_basis_states(
         nested in a tuple.
     """
 
+    timing = time.perf_counter()
     # Generate all combinations of m value indices of length n_valence_nucleons.
     index_combinations = combinations(
         range(len(interaction.model_space_neutron.all_jz_values)),
@@ -53,6 +56,7 @@ def calculate_m_basis_states(
         lambda indices: sum(interaction.model_space_neutron.all_jz_values[i] for i in indices) == M_target,
         index_combinations,
     )
-
+    timing = time.perf_counter() - timing
+    timings.calculate_m_basis_states_002 = timing
     return tuple(index_combinations_filtered)
     # return index_combinations_filtered
