@@ -325,45 +325,6 @@ def calculate_twobody_matrix_element(
                                 m_coupled = m_coupled,
                             )
 
-                            # Creation term:
-                            # creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))  # TODO: Move this!
-
-                            # for creation_m_idx_0 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_0]:
-                            #     creation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_0, creation_m_idx_0)]
-
-                            #     for creation_m_idx_1 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_1]:
-                            #         creation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_1, creation_m_idx_1)]
-
-                            #         cg_creation = clebsch_gordan[(
-                            #             indices.orbital_idx_to_j_map[creation_orb_idx_0],
-                            #             indices.m_composite_idx_to_m_map[creation_comp_m_idx_0],
-                            #             indices.orbital_idx_to_j_map[creation_orb_idx_1],
-                            #             indices.m_composite_idx_to_m_map[creation_comp_m_idx_1],
-                            #             j_coupled,
-                            #             m_coupled,
-                            #         )]
-                            #         if cg_creation == 0: continue
-                                    
-                            #         for annihilation_coeff, new_right_statee in annihilation_results:
-
-                            #             new_right_state_copy = new_right_statee.copy()  # TODO: Yes, super bad name to avoid namespace collision, will fix.
-                            #             tmp_left_state = list(left_state)   # TODO: Move this!
-
-                            #             if creation_comp_m_idx_1 in new_right_state_copy: continue
-                            #             created_substate_idx = bisect_right(a=new_right_state_copy, x=creation_comp_m_idx_1)
-                            #             new_right_state_copy.insert(created_substate_idx, creation_comp_m_idx_1)
-                            #             creation_sign = (-1)**created_substate_idx
-
-                            #             if creation_comp_m_idx_0 in new_right_state_copy: continue
-                            #             created_substate_idx = bisect_right(a=new_right_state_copy, x=creation_comp_m_idx_0)
-                            #             new_right_state_copy.insert(created_substate_idx, creation_comp_m_idx_0)
-                            #             creation_sign *= (-1)**created_substate_idx
-
-                            #             if tmp_left_state != new_right_state_copy:
-                            #                 continue
-                                        
-                            #             twobody_res += creation_sign*tbme*creation_norm*cg_creation*annihilation_coeff
-
     timing = time.perf_counter() - timing
     timings.calculate_twobody_matrix_element_004 += timing
     return twobody_res
