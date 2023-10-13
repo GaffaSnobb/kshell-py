@@ -63,10 +63,10 @@ def generate_indices(interaction: Interaction) -> Indices:
     """
     timing = time.perf_counter()
     indices: Indices = Indices()
-    indices.m_composite_idx_to_m_map = interaction.model_space_neutron.all_jz_values
+    indices.m_composite_idx_to_m_map = interaction.model_space.all_jz_values
 
     m_composite_idx_counter = 0
-    for orb_idx, orbital in enumerate(interaction.model_space_neutron.orbitals):
+    for orb_idx, orbital in enumerate(interaction.model_space.orbitals):
         indices.orbital_idx_to_m_idx_map.append(tuple(range(orbital.degeneracy)))
         indices.orbital_idx_to_j_map.append(orbital.j)
 
