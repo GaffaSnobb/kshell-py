@@ -374,9 +374,13 @@ def create_hamiltonian(
     
     H = np.zeros((m_dim, m_dim), dtype=np.float64)
     
-    with tqdm(total=m_dim**2) as pbar:
+    with tqdm(total=m_dim**2/2) as pbar:
         for left_idx in range(m_dim):
-            for right_idx in range(m_dim):
+            """
+            Calculate only the upper triangle of the Hamiltonian matrix.
+            H is hermitian so we dont have to calculate both triangles.
+            """
+            for right_idx in range(left_idx, m_dim):
 
                 H[left_idx, right_idx] += calculate_onebody_matrix_element(
                     interaction = interaction,
@@ -390,9 +394,11 @@ def create_hamiltonian(
                     left_state = basis_states[left_idx],
                     right_state = basis_states[right_idx],
                 )
-            pbar.update(m_dim)
-            
+                pbar.update(1)
 
+    H += H.T - np.diag(np.diag(H))  #
+    # import sys
+    # sys.exit()
     timing = time.perf_counter() - timing
     timings.create_hamiltonian_000 = timing
     return H
