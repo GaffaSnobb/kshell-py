@@ -2,6 +2,7 @@ import time, sys
 from bisect import bisect_right
 from math import sqrt
 import numpy as np
+from tqdm import tqdm
 from kshell_utilities.data_structures import Interaction
 from basis import calculate_m_basis_states
 from parameters import clebsch_gordan
@@ -18,7 +19,7 @@ def calculate_onebody_matrix_element(
     onebody_res: float = 0.0
     left_state_copy = list(left_state)  # I want this as a list so that I can perform list comparisons. Will not be modified.
 
-    for creation_orb_idx in range(interaction.model_space_neutron.n_orbitals):
+    for creation_orb_idx in range(interaction.model_space.n_orbitals):
         """
         More generally, there should also be a loop over the same values
         for annihilation_idx, but the SPEs for most, if not all of the
@@ -170,7 +171,7 @@ def twobody_annihilation_term(
             new_right_state.pop(annihilation_idx)
             annihilation_sign *= (-1)**annihilation_idx
 
-            assert len(new_right_state) == (interaction.model_space_neutron.n_valence_nucleons - 2)    # Sanity check.
+            assert len(new_right_state) == (interaction.model_space.n_valence_nucleons - 2)    # Sanity check.
 
             cg_annihilation = clebsch_gordan[(
                 indices.orbital_idx_to_j_map[annihilation_orb_idx_0],
@@ -250,7 +251,7 @@ def calculate_twobody_matrix_element(
     
     timing = time.perf_counter()
     twobody_res: float = 0.0
-    n_orbitals = interaction.model_space_neutron.n_orbitals # Just to make the name shorter.
+    n_orbitals = interaction.model_space.n_orbitals # Just to make the name shorter.
     
     for creation_orb_idx_0 in range(n_orbitals):
         for creation_orb_idx_1 in range(creation_orb_idx_0, n_orbitals):
@@ -373,21 +374,24 @@ def create_hamiltonian(
     
     H = np.zeros((m_dim, m_dim), dtype=np.float64)
     
-    for left_idx in range(m_dim):
-        for right_idx in range(m_dim):
+    with tqdm(total=m_dim**2) as pbar:
+        for left_idx in range(m_dim):
+            for right_idx in range(m_dim):
 
-            H[left_idx, right_idx] += calculate_onebody_matrix_element(
-                interaction = interaction,
-                indices = indices,
-                left_state = basis_states[left_idx],
-                right_state = basis_states[right_idx],
-            )
-            H[left_idx, right_idx] += calculate_twobody_matrix_element(
-                interaction = interaction,
-                indices = indices,
-                left_state = basis_states[left_idx],
-                right_state = basis_states[right_idx],
-            )
+                H[left_idx, right_idx] += calculate_onebody_matrix_element(
+                    interaction = interaction,
+                    indices = indices,
+                    left_state = basis_states[left_idx],
+                    right_state = basis_states[right_idx],
+                )
+                H[left_idx, right_idx] += calculate_twobody_matrix_element(
+                    interaction = interaction,
+                    indices = indices,
+                    left_state = basis_states[left_idx],
+                    right_state = basis_states[right_idx],
+                )
+            pbar.update(m_dim)
+            
 
     timing = time.perf_counter() - timing
     timings.create_hamiltonian_000 = timing
