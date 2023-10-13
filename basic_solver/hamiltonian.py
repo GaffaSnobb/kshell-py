@@ -12,12 +12,11 @@ from data_structures import Indices, timings
 def calculate_onebody_matrix_element(
     interaction: Interaction,
     indices: Indices,
-    left_state: tuple[int, ...],
+    left_state_copy: list[int],
     right_state: tuple[int, ...],
 ) -> float:
     timing = time.perf_counter()
     onebody_res: float = 0.0
-    left_state_copy = list(left_state)  # I want this as a list so that I can perform list comparisons. Will not be modified.
 
     for creation_orb_idx in range(interaction.model_space.n_orbitals):
         """
@@ -191,7 +190,7 @@ def twobody_annihilation_term(
 def twobody_creation_term(
     indices: Indices,
     annihilation_results: list[tuple[float, list[int]]],
-    left_state: tuple[int, ...],
+    left_state_copy: list[int],
     creation_orb_idx_0: int,
     creation_orb_idx_1: int,
     j_coupled: int,
@@ -202,7 +201,6 @@ def twobody_creation_term(
     of the Hamiltonian.
     """
     creation_res: float = 0.0
-    creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))  # TODO: Move this!
 
     for creation_m_idx_0 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_0]:
         creation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_0, creation_m_idx_0)]
@@ -223,7 +221,7 @@ def twobody_creation_term(
             for annihilation_coeff, right_state in annihilation_results:
 
                 new_right_state = right_state.copy()
-                tmp_left_state = list(left_state)   # TODO: Move this!
+                # tmp_left_state = list(left_state)   # TODO: Move this!
 
                 if creation_comp_m_idx_1 in new_right_state: continue
                 created_substate_idx = bisect_right(a=new_right_state, x=creation_comp_m_idx_1)
@@ -235,17 +233,17 @@ def twobody_creation_term(
                 new_right_state.insert(created_substate_idx, creation_comp_m_idx_0)
                 creation_sign *= (-1)**created_substate_idx
 
-                if tmp_left_state != new_right_state:
+                if left_state_copy != new_right_state:
                     continue
                 
-                creation_res += creation_sign*creation_norm*cg_creation*annihilation_coeff
+                creation_res += creation_sign*cg_creation*annihilation_coeff
 
     return creation_res
 
 def calculate_twobody_matrix_element(
     interaction: Interaction,
     indices: Indices,
-    left_state: tuple[int, ...],
+    left_state_copy: list[int],
     right_state: tuple[int, ...],
 ) -> float:
     
@@ -255,15 +253,17 @@ def calculate_twobody_matrix_element(
     
     for creation_orb_idx_0 in range(n_orbitals):
         for creation_orb_idx_1 in range(creation_orb_idx_0, n_orbitals):
+            creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))
+            
             for annihilation_orb_idx_0 in range(n_orbitals):
                 for annihilation_orb_idx_1 in range(annihilation_orb_idx_0, n_orbitals):
 
                     j_min = max(
-                        abs(indices.orbital_idx_to_j_map[creation_orb_idx_0] - indices.orbital_idx_to_j_map[creation_orb_idx_1]),
+                        abs(indices.orbital_idx_to_j_map[creation_orb_idx_0] - indices.orbital_idx_to_j_map[creation_orb_idx_1]),   # NOTE: This line can be put outside of two loops however, very little time save for 18O.
                         abs(indices.orbital_idx_to_j_map[annihilation_orb_idx_0] - indices.orbital_idx_to_j_map[annihilation_orb_idx_1]),
                     )
                     j_max = min(
-                        indices.orbital_idx_to_j_map[creation_orb_idx_0] + indices.orbital_idx_to_j_map[creation_orb_idx_1],
+                        indices.orbital_idx_to_j_map[creation_orb_idx_0] + indices.orbital_idx_to_j_map[creation_orb_idx_1],    # NOTE: This line can be put outside of two loops however, very little time save for 18O.
                         indices.orbital_idx_to_j_map[annihilation_orb_idx_0] + indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
                     )
 
@@ -285,28 +285,28 @@ def calculate_twobody_matrix_element(
                         values are multiplied by 2 to avoid fractions.
                         + 2 so that the end point is included.
                         """
+                        try:
+                            tbme = interaction.tbme[(
+                                creation_orb_idx_0,
+                                creation_orb_idx_1,
+                                annihilation_orb_idx_0,
+                                annihilation_orb_idx_1,
+                                j_coupled
+                            )]
+                        except KeyError:
+                            """
+                            If the current interaction file is not
+                            defining any two-body matrix elements
+                            for this choice of orbitals and coupled
+                            j then the result is 0.
+                            """
+                            continue
+
                         for m_coupled in range(-j_coupled, j_coupled + 2, 2):
                             """
                             m_coupled is simply the z component of the
                             coupled total angular momentum, j_coupled.
                             """
-                            try:
-                                tbme = interaction.tbme[(
-                                    creation_orb_idx_0,
-                                    creation_orb_idx_1,
-                                    annihilation_orb_idx_0,
-                                    annihilation_orb_idx_1,
-                                    j_coupled
-                                )]
-                            except KeyError:
-                                """
-                                If the current interaction file is not
-                                defining any two-body matrix elements
-                                for this choice of orbitals and coupled
-                                j then the result is 0.
-                                """
-                                continue
-
                             annihilation_results = twobody_annihilation_term(
                                 interaction = interaction,
                                 indices = indices,
@@ -316,10 +316,10 @@ def calculate_twobody_matrix_element(
                                 j_coupled = j_coupled,
                                 m_coupled = m_coupled,
                             )
-                            twobody_res += tbme*twobody_creation_term(
+                            twobody_res += creation_norm*tbme*twobody_creation_term(
                                 indices = indices,
                                 annihilation_results = annihilation_results,
-                                left_state = left_state,
+                                left_state_copy = left_state_copy,
                                 creation_orb_idx_0 = creation_orb_idx_0,
                                 creation_orb_idx_1 = creation_orb_idx_1,
                                 j_coupled = j_coupled,
@@ -380,18 +380,19 @@ def create_hamiltonian(
             Calculate only the upper triangle of the Hamiltonian matrix.
             H is hermitian so we dont have to calculate both triangles.
             """
+            left_state_copy = list(basis_states[left_idx])  # For list comparing modified right states.
             for right_idx in range(left_idx, m_dim):
 
                 H[left_idx, right_idx] += calculate_onebody_matrix_element(
                     interaction = interaction,
                     indices = indices,
-                    left_state = basis_states[left_idx],
+                    left_state_copy = left_state_copy,
                     right_state = basis_states[right_idx],
                 )
                 H[left_idx, right_idx] += calculate_twobody_matrix_element(
                     interaction = interaction,
                     indices = indices,
-                    left_state = basis_states[left_idx],
+                    left_state_copy = left_state_copy,
                     right_state = basis_states[right_idx],
                 )
                 pbar.update(1)
