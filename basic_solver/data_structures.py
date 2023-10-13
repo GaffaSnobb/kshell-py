@@ -104,10 +104,15 @@ class Timing:
             group_ids = [0, 0],
             attr_ids = [4, 0],
         )
-        self.calculate_twobody_matrix_element_sub = TimingGroupID(
-            time = .2,
+        self.twobody_annihilation_term = TimingGroupID(
+            time = 0.0,
             group_ids = [0, 0],
             attr_ids = [4, 1],
+        )
+        self.twobody_creation_term = TimingGroupID(
+            time = 0.0,
+            group_ids = [0, 0],
+            attr_ids = [4, 2],
         )
         self.generate_indices = TimingGroupID(
             time = 0.0,
@@ -170,18 +175,18 @@ class Timing:
 
                 if len(group_ids) == 2:
                     try:
-                        sub_group_timings[(0, 4)].append((attr_ids[1], attr_name, time))
+                        sub_group_timings[(0, 4)].append([attr_ids[1], attr_name, time])
                     except KeyError:
                         sub_group_timings[(0, 4)] = []
-                        sub_group_timings[(0, 4)].append((attr_ids[1], attr_name, time))
+                        sub_group_timings[(0, 4)].append([attr_ids[1], attr_name, time])
 
-                    sub_group_total += time
                     if attr_ids[1] != 0:
                         """
                         We want to include the sub-group parents in the
                         main group overview. Sub-group children however,
                         are not included.
                         """
+                        sub_group_total += time
                         continue
 
                 if group_ids[0] != defined_group:
@@ -203,7 +208,7 @@ class Timing:
                     group_total += time
 
                 # group_timings[defined_group].insert(attr_ids[0], (attr_name, time))
-                group_timings[defined_group].append((attr_ids[0], attr_name, time))
+                group_timings[defined_group].append([attr_ids[0], attr_name, time])
 
             group_timings[defined_group].sort(key=lambda tup: tup[0])
 
@@ -215,12 +220,14 @@ class Timing:
                 """
                 Currently hard-coded for sub group 0.
                 """
-                group_timings[0].sort(key=lambda tup: tup[0])
-                sub_group_timings[0].insert(    # This is the overhead time of the parent.
-                    0,
-                    (1, sub_group_timings[0] [0][1], sub_group_timings[0] [0][2] - sub_group_total)
-                )
-                assert sub_group_timings[0] [1][2] >= 0  # Should never be negative.
+                sub_group_timings[(0, 4)].sort(key=lambda tup: tup[0])
+
+                sub_group_timings[(0, 4)][0][2] -= sub_group_total
+                # sub_group_timings[(0, 4)].insert(    # This is the overhead time of the parent.
+                #     0,
+                #     (1, sub_group_timings[(0, 4)] [0][1], sub_group_timings[(0, 4)] [0][2] - sub_group_total)
+                # )
+                assert sub_group_timings[(0, 4)] [1][2] >= 0  # Should never be negative.
             except KeyError:
                 pass
 
