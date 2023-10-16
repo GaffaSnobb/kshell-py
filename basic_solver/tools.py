@@ -2,6 +2,7 @@ import time, sys, os
 from functools import cache
 from sympy.physics.quantum.cg import CG
 from scipy.special import comb
+import numpy as np
 from data_structures import Indices
 from kshell_utilities.data_structures import Interaction
 from data_structures import timings
@@ -38,6 +39,11 @@ def generate_clebsh_gordan_coefficients():
         5: [-5, -3, -1, 1, 3, 5],
         1: [-1, 1],
     }
+    arr = np.zeros(
+        shape = (6, 6+5, 6, 6+5, 11, 11+10),
+        dtype = np.float64
+    )
+    print(arr.nbytes/1000/1000)
     with open("cg.txt", "w") as outfile:
         for j1 in [3, 5, 1]:
             for m1 in m_vals[j1]:
@@ -54,7 +60,10 @@ def generate_clebsh_gordan_coefficients():
                                     j3 = j3/2,
                                     m3 = m3/2,
                                 )
+                                # arr[j1, m1, j2, m2, j3, m3] = float(cg_creation.doit())
                                 # outfile.write(f"({j1:2}, {m1:2}, {j2:2}, {m2:2}, {j3:2}, {m3:2}): {float(cg_creation.doit())},\n")
+
+    # np.save(file="CG_coefficients.npy", arr=arr, allow_pickle=True)
 
 def generate_indices(interaction: Interaction) -> Indices:
     """
@@ -75,7 +84,7 @@ def generate_indices(interaction: Interaction) -> Indices:
             m_composite_idx_counter += 1
 
     timing = time.perf_counter() - timing
-    timings.generate_indices_001 = timing
+    timings.generate_indices.time = timing
     return indices
 
 class HidePrint:
@@ -97,3 +106,6 @@ class HidePrint:
     def __exit__(self, exc_type, exc_val, exc_tb):
         sys.stdout.close()
         sys.stdout = self._original_stdout
+
+if __name__ == "__main__":
+    generate_clebsh_gordan_coefficients()

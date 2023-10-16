@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 from kshell_utilities.data_structures import Interaction
 from basis import calculate_m_basis_states
-from parameters import clebsch_gordan
+from parameters import clebsch_gordan, clebsch_gordan_array
 from tools import generate_indices
 from data_structures import Indices, timings
 
@@ -122,7 +122,7 @@ def calculate_onebody_matrix_element(
                 onebody_res += annihilation_sign*creation_sign*interaction.spe[creation_orb_idx] # Or annihilation_orb_idx, they are the same.
 
     timing = time.perf_counter() - timing
-    timings.calculate_onebody_matrix_element_003 += timing
+    timings.calculate_onebody_matrix_element.time += timing
     return onebody_res
 
 def twobody_annihilation_term(
@@ -154,6 +154,8 @@ def twobody_annihilation_term(
         for annihilation_m_idx_1 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_1]:
             annihilation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_1, annihilation_m_idx_1)]
 
+            # if annihilation_comp_m_idx_0 == annihilation_comp_m_idx_1: continue   # No change in program run time.
+
             new_right_state = list(right_state)
 
             if annihilation_comp_m_idx_0 not in new_right_state: continue
@@ -164,13 +166,11 @@ def twobody_annihilation_term(
 
             if annihilation_comp_m_idx_1 not in new_right_state: continue
 
-            # new_right_state.remove(annihilation_comp_m_idx_1)
-
             annihilation_idx = new_right_state.index(annihilation_comp_m_idx_1)
             new_right_state.pop(annihilation_idx)
             annihilation_sign *= (-1)**annihilation_idx
 
-            assert len(new_right_state) == (interaction.model_space.n_valence_nucleons - 2)    # Sanity check.
+            assert len(new_right_state) == (interaction.model_space.n_valence_nucleons - 2)    # Sanity check. Extremely small impact on program run time.
 
             cg_annihilation = clebsch_gordan[(
                 indices.orbital_idx_to_j_map[annihilation_orb_idx_0],
@@ -208,6 +208,8 @@ def twobody_creation_term(
         for creation_m_idx_1 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_1]:
             creation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_1, creation_m_idx_1)]
 
+            # if creation_comp_m_idx_0 == creation_comp_m_idx_1: continue # Actually increases program run time.
+
             cg_creation = clebsch_gordan[(
                 indices.orbital_idx_to_j_map[creation_orb_idx_0],
                 indices.m_composite_idx_to_m_map[creation_comp_m_idx_0],
@@ -216,12 +218,12 @@ def twobody_creation_term(
                 j_coupled,
                 m_coupled,
             )]
+
             if cg_creation == 0: continue
             
             for annihilation_coeff, right_state in annihilation_results:
 
                 new_right_state = right_state.copy()
-                # tmp_left_state = list(left_state)   # TODO: Move this!
 
                 if creation_comp_m_idx_1 in new_right_state: continue
                 created_substate_idx = bisect_right(a=new_right_state, x=creation_comp_m_idx_1)
@@ -307,6 +309,7 @@ def calculate_twobody_matrix_element(
                             m_coupled is simply the z component of the
                             coupled total angular momentum, j_coupled.
                             """
+                            timing_twobody_annihilation_term = time.perf_counter()
                             annihilation_results = twobody_annihilation_term(
                                 interaction = interaction,
                                 indices = indices,
@@ -316,6 +319,10 @@ def calculate_twobody_matrix_element(
                                 j_coupled = j_coupled,
                                 m_coupled = m_coupled,
                             )
+                            timing_twobody_annihilation_term = time.perf_counter() - timing_twobody_annihilation_term
+                            timings.twobody_annihilation_term.time += timing_twobody_annihilation_term
+                            
+                            timing_twobody_creation_term = time.perf_counter()
                             twobody_res += creation_norm*tbme*twobody_creation_term(
                                 indices = indices,
                                 annihilation_results = annihilation_results,
@@ -325,9 +332,11 @@ def calculate_twobody_matrix_element(
                                 j_coupled = j_coupled,
                                 m_coupled = m_coupled,
                             )
+                            timing_twobody_creation_term = time.perf_counter() - timing_twobody_creation_term
+                            timings.twobody_creation_term.time += timing_twobody_creation_term
 
     timing = time.perf_counter() - timing
-    timings.calculate_twobody_matrix_element_004 += timing
+    timings.calculate_twobody_matrix_element.time += timing
     return twobody_res
 
 def create_hamiltonian(
@@ -397,9 +406,10 @@ def create_hamiltonian(
                 )
                 pbar.update(1)
 
-    H += H.T - np.diag(np.diag(H))  #
-    # import sys
-    # sys.exit()
+    H += H.T - np.diag(np.diag(H))  # Add the lower triangle to complete the matrix.
+
+    np.savetxt(fname="hamham.txt", X=H, fmt="%6.2f")
+
     timing = time.perf_counter() - timing
-    timings.create_hamiltonian_000 = timing
+    timings.create_hamiltonian.time = timing
     return H

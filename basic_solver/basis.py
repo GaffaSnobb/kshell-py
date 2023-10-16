@@ -79,6 +79,6 @@ def calculate_m_basis_states(
         combined_index_combinations,
     ))
     timing = time.perf_counter() - timing
-    timings.calculate_m_basis_states_002 = timing
+    timings.calculate_m_basis_states.time = timing
 
     return basis_states

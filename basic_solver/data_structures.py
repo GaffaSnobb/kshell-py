@@ -129,6 +129,11 @@ class Timing:
             group_ids = [0],
             attr_ids = [0],
         )
+        # self.eigensolver = TimingGroupID(
+        #     time = 0.0,
+        #     group_ids = [1],
+        #     attr_ids = [0],
+        # )
         self.total = TimingGroupID(
             time = 0.0,
             group_ids = [],

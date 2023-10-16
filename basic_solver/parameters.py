@@ -1,6 +1,11 @@
+import numpy as np
+from numpy.typing import NDArray
+
 flags: dict[str, bool] = {
     "debug": False,
 }
+clebsch_gordan_array: NDArray[np.float64] = np.load(file="CG_coefficients.npy", allow_pickle=True)  # Actually worse performance than dict with tuple keys.
+
 clebsch_gordan: dict[tuple[int, int, int, int, int, int], float] = {
     # (j1, m1, j2, m2, j, m), all j and m values are stored as 2*j and 2*m
     # to avoid fractions. I have stored 0 values instead of using
