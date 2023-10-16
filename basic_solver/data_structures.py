@@ -70,11 +70,17 @@ class Indices:
                     -3, -1, +1, +3, -5, -3, -1, +1, +3, +5, -1, +1,
                 ]
 
+        orbital_idx_to_comp_m_idx_map : list[tuple[int, ...]]
+            Translate the orbital indices to the composite m indices of
+            the magnetic substates. For example, proton d3/2 has orbital
+            index 0 and composite m substate indices 0, 1, 2, 3.
+
     """
-    orbital_idx_to_m_idx_map: list[tuple[int, ...]] = field(default_factory=list)
-    orbital_m_pair_to_composite_m_idx_map: dict[tuple[int, int], int] = field(default_factory=dict)
+    # orbital_idx_to_m_idx_map: list[tuple[int, ...]] = field(default_factory=list) # NOTE: Replaced by orbital_idx_to_comp_m_idx_map
+    # orbital_m_pair_to_composite_m_idx_map: dict[tuple[int, int], int] = field(default_factory=dict)   # NOTE: Replaced by orbital_idx_to_comp_m_idx_map
     orbital_idx_to_j_map: list[int] = field(default_factory=list)
     m_composite_idx_to_m_map: list[int] = field(default_factory=list)
+    orbital_idx_to_comp_m_idx_map: list[tuple[int, ...]] = field(default_factory=list)
 
 @dataclass(slots=True)
 class Interaction:

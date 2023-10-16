@@ -17,14 +17,14 @@ from data_structures import Indices, timings
 #     4: [16, 17, 18, 19, 20, 21],
 #     5: [22, 23],
 # }
-orbital_idx_to_comp_m_idx_map = [
-    [0, 1, 2, 3],
-    [4, 5, 6, 7, 8, 9],
-    [10, 11],
-    [12, 13, 14, 15],
-    [16, 17, 18, 19, 20, 21],
-    [22, 23],
-]
+# orbital_idx_to_comp_m_idx_map = [
+#     (0, 1, 2, 3),
+#     (4, 5, 6, 7, 8, 9),
+#     (10, 11),
+#     (12, 13, 14, 15),
+#     (16, 17, 18, 19, 20, 21),
+#     (22, 23),
+# ]
 
 def calculate_onebody_matrix_element(
     interaction: Interaction,
@@ -44,8 +44,8 @@ def calculate_onebody_matrix_element(
         """
         annihilation_orb_idx = creation_orb_idx
     
-        for creation_comp_m_idx in orbital_idx_to_comp_m_idx_map[creation_orb_idx]:
-            for annihilation_comp_m_idx in orbital_idx_to_comp_m_idx_map[annihilation_orb_idx]:
+        for creation_comp_m_idx in indices.orbital_idx_to_comp_m_idx_map[creation_orb_idx]:
+            for annihilation_comp_m_idx in indices.orbital_idx_to_comp_m_idx_map[annihilation_orb_idx]:
                 """
                 Index scheme for the sd model space:
 
@@ -142,8 +142,8 @@ def twobody_annihilation_term(
     
     annihilation_results: list[tuple[float, list[int]]] = []
 
-    for annihilation_comp_m_idx_0 in orbital_idx_to_comp_m_idx_map[annihilation_orb_idx_0]:
-        for annihilation_comp_m_idx_1 in orbital_idx_to_comp_m_idx_map[annihilation_orb_idx_1]:
+    for annihilation_comp_m_idx_0 in indices.orbital_idx_to_comp_m_idx_map[annihilation_orb_idx_0]:
+        for annihilation_comp_m_idx_1 in indices.orbital_idx_to_comp_m_idx_map[annihilation_orb_idx_1]:
 
             new_right_state = list(right_state)
 
@@ -194,8 +194,8 @@ def twobody_creation_term(
     # for creation_m_idx_0 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_0]:
     #     creation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_0, creation_m_idx_0)]
 
-    for creation_comp_m_idx_0 in orbital_idx_to_comp_m_idx_map[creation_orb_idx_0]:
-        for creation_comp_m_idx_1 in orbital_idx_to_comp_m_idx_map[creation_orb_idx_1]:
+    for creation_comp_m_idx_0 in indices.orbital_idx_to_comp_m_idx_map[creation_orb_idx_0]:
+        for creation_comp_m_idx_1 in indices.orbital_idx_to_comp_m_idx_map[creation_orb_idx_1]:
 
         # for creation_m_idx_1 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_1]:
         #     creation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_1, creation_m_idx_1)]
