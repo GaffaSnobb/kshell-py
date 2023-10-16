@@ -44,56 +44,59 @@ def calculate_onebody_matrix_element(
         """
         annihilation_orb_idx = creation_orb_idx
     
-        for creation_m_idx in indices.orbital_idx_to_m_idx_map[creation_orb_idx]:
-            """
-            Here is an overview of the indices of the sd model space:
+        # for creation_m_idx in indices.orbital_idx_to_m_idx_map[creation_orb_idx]:
+        #     """
+        #     Here is an overview of the indices of the sd model space:
 
-                          10    11        
-                        -  O  -  O  -             s1/2: 2
-                         -1/2   1/2
+        #                   10    11        
+        #                 -  O  -  O  -             s1/2: 2
+        #                  -1/2   1/2
 
-               4     5     6     7     8     9    
-            -  O  -  O  -  O  -  O  -  O  -  O    d5/2: 1
-             -5/2  -3/2  -1/2   1/2   3/2   5/2
+        #        4     5     6     7     8     9    
+        #     -  O  -  O  -  O  -  O  -  O  -  O    d5/2: 1
+        #      -5/2  -3/2  -1/2   1/2   3/2   5/2
 
-                     0     1     2     3
-                  -  O  -  O  -  O  -  O  -       d3/2: 0
-                   -3/2  -1/2   1/2   3/2
+        #              0     1     2     3
+        #           -  O  -  O  -  O  -  O  -       d3/2: 0
+        #            -3/2  -1/2   1/2   3/2
             
-            At this point, creation_m_idx is the m index within an
-            orbital.
+        #     At this point, creation_m_idx is the m index within an
+        #     orbital.
 
-            Example:
-                d3/2 gives: 0, 1, 2, 3
-                d5/2 gives: 0, 1, 2, 3, 4, 5
-                s1/2 gives: 0, 1
+        #     Example:
+        #         d3/2 gives: 0, 1, 2, 3
+        #         d5/2 gives: 0, 1, 2, 3, 4, 5
+        #         s1/2 gives: 0, 1
 
-            Note that the notation of the basis states uses a composite
-            m index which for the sd model space will be 0, 1, ..., 11
-            where
+        #     Note that the notation of the basis states uses a composite
+        #     m index which for the sd model space will be 0, 1, ..., 11
+        #     where
 
-                d3/2: 0, 1, 2, 3
-                d5/2: 4, 5, 6, 7, 8, 9
-                s1/2: 10, 11
+        #         d3/2: 0, 1, 2, 3
+        #         d5/2: 4, 5, 6, 7, 8, 9
+        #         s1/2: 10, 11
             
-            This means that creation_m_idx has to be translated to the
-            composite m index where both the index of the orbital and
-            the index of the orbitals m substate is needed for the
-            translation.
+        #     This means that creation_m_idx has to be translated to the
+        #     composite m index where both the index of the orbital and
+        #     the index of the orbitals m substate is needed for the
+        #     translation.
             
-            Example:
-                (0, 0): 0   # Orbital 0 is d3/2, m index 0 is -3/2.
-                ...
-                (1, 0): 4   # Orbital 1 is d5/2, m index 0 is -5/2.
-            """
-            creation_comp_m_idx = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx, creation_m_idx)]
+        #     Example:
+        #         (0, 0): 0   # Orbital 0 is d3/2, m index 0 is -3/2.
+        #         ...
+        #         (1, 0): 4   # Orbital 1 is d5/2, m index 0 is -5/2.
+        #     """
+        #     creation_comp_m_idx = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx, creation_m_idx)]
             
-            for annihilation_m_idx in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx]:
-                """
-                Same translation for the annihilation_m_idx as for the
-                creation.
-                """
-                annihilation_comp_m_idx = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx, annihilation_m_idx)]
+        #     for annihilation_m_idx in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx]:
+        #         """
+        #         Same translation for the annihilation_m_idx as for the
+        #         creation.
+        #         """
+        #         annihilation_comp_m_idx = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx, annihilation_m_idx)]
+    
+        for creation_comp_m_idx in orbital_idx_to_comp_m_idx_map[creation_orb_idx]:
+            for annihilation_comp_m_idx in orbital_idx_to_comp_m_idx_map[annihilation_orb_idx]:
 
                 new_right_state = list(right_state)
                 
@@ -158,23 +161,9 @@ def twobody_annihilation_term(
     annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))
     
     annihilation_results: list[tuple[float, list[int]]] = []
-    
-    # for annihilation_m_idx_0 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_0]:
-    #     """
-    #     See the docstrings in
-    #     calculate_onebody_matrix_element for a
-    #     description on whats going on with these
-    #     indices.
-    #     """
-    #     annihilation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_0, annihilation_m_idx_0)]
 
     for annihilation_comp_m_idx_0 in orbital_idx_to_comp_m_idx_map[annihilation_orb_idx_0]:
         for annihilation_comp_m_idx_1 in orbital_idx_to_comp_m_idx_map[annihilation_orb_idx_1]:
-        
-        # for annihilation_m_idx_1 in indices.orbital_idx_to_m_idx_map[annihilation_orb_idx_1]:
-        #     annihilation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(annihilation_orb_idx_1, annihilation_m_idx_1)]
-
-            # if annihilation_comp_m_idx_0 == annihilation_comp_m_idx_1: continue   # No change in program run time.
 
             new_right_state = list(right_state)
 
