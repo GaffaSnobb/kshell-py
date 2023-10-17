@@ -116,25 +116,23 @@ def twobody_annihilation_term(
     right_state: tuple[int, ...],
     annihilation_orb_idx_0: int,
     annihilation_orb_idx_1: int,
-    # composite_m_indices_0,
-    # composite_m_indices_1,
     j_coupled: int,
     m_coupled: int,
 ) -> list[tuple[float, list[int]]]:
     """
     All calculations related to the annihilation term in the two-body
     part of the Hamiltonian.
+
+    NOTE: Inlining this code instead of having it as a function has
+    almost no impact on program performance. Might as well let it stay
+    in this function since it makes the code more readable.
     """
-    annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))  # Changing to lookup table had almost no impact.
+    # annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))  # Changing to lookup table had almost no impact.
     
     annihilation_results: list[tuple[float, list[int]]] = []
 
     for annihilation_comp_m_idx_0 in indices.orbital_idx_to_composite_m_idx_map[annihilation_orb_idx_0]:
         for annihilation_comp_m_idx_1 in indices.orbital_idx_to_composite_m_idx_map[annihilation_orb_idx_1]:
-
-    # for i in range(len(indices.composite_m_indices_0)):
-    #     annihilation_comp_m_idx_0 = indices.composite_m_indices_0[i]
-    #     annihilation_comp_m_idx_1 = indices.composite_m_indices_1[i]
 
             new_right_state = list(right_state)
 
@@ -163,7 +161,8 @@ def twobody_annihilation_term(
 
             if cg_annihilation == 0: continue
 
-            annihilation_results.append((annihilation_sign*annihilation_norm*cg_annihilation, new_right_state))
+            # annihilation_results.append((annihilation_sign*annihilation_norm*cg_annihilation, new_right_state))
+            annihilation_results.append((annihilation_sign*cg_annihilation, new_right_state))
 
     return annihilation_results
 
@@ -227,88 +226,103 @@ def calculate_twobody_matrix_element(
     timing = time.perf_counter()
     twobody_res: float = 0.0
     n_orbitals = interaction.model_space.n_orbitals # Just to make the name shorter.
-    
-    for creation_orb_idx_0 in range(n_orbitals):
-        for creation_orb_idx_1 in range(creation_orb_idx_0, n_orbitals):
-            creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))  # Changing to lookup table had almost no impact.
-            
-            for annihilation_orb_idx_0 in range(n_orbitals):
-                for annihilation_orb_idx_1 in range(annihilation_orb_idx_0, n_orbitals):
 
-                    j_min = max(
-                        abs(indices.orbital_idx_to_j_map[creation_orb_idx_0] - indices.orbital_idx_to_j_map[creation_orb_idx_1]),   # NOTE: This line can be put outside of two loops however, very little time save for 18O.
-                        abs(indices.orbital_idx_to_j_map[annihilation_orb_idx_0] - indices.orbital_idx_to_j_map[annihilation_orb_idx_1]),
-                    )
-                    j_max = min(
-                        indices.orbital_idx_to_j_map[creation_orb_idx_0] + indices.orbital_idx_to_j_map[creation_orb_idx_1],    # NOTE: This line can be put outside of two loops however, very little time save for 18O.
-                        indices.orbital_idx_to_j_map[annihilation_orb_idx_0] + indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
-                    )
+    for i in range(len(indices.creation_orb_indices_0)):
+        """
+        The values in the following lists corresponds to using these
+        nested loops:
 
-                    for j_coupled in range(j_min, j_max + 2, 2):
-                        """
-                        j_coupled is the total angular momentum to which 
-                        (creation_orb_idx_0, creation_orb_idx_1) and
-                        (annihilation_orb_idx_0, annihilation_orb_idx_1)
-                        couple. Follows the standard angular momentum
-                        coupling rules:
+        for creation_orb_idx_0 in range(n_orbitals):
+            for creation_orb_idx_1 in range(creation_orb_idx_0, n_orbitals):
+                
+                for annihilation_orb_idx_0 in range(n_orbitals):
+                    for annihilation_orb_idx_1 in range(annihilation_orb_idx_0, n_orbitals):
+        
+        It gives a few percent reduction in program run time by using
+        pre-calculated indices instead of four nested loops.
+        """
+        creation_orb_idx_0 = indices.creation_orb_indices_0[i]
+        creation_orb_idx_1 = indices.creation_orb_indices_1[i]
+        annihilation_orb_idx_0 = indices.annihilation_orb_indices_0[i]
+        annihilation_orb_idx_1 = indices.annihilation_orb_indices_1[i]
 
-                            j = | j1 - j2 |, | j1 - j2 | + 1, ..., j1 + j2
+        creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))
+        annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))
 
-                        but we have to respect the allowed range for
-                        both pairs of total angular momentum values so
-                        that j_coupled is contained in both ranges.
+        j_min = max(
+            abs(indices.orbital_idx_to_j_map[creation_orb_idx_0] - indices.orbital_idx_to_j_map[creation_orb_idx_1]),
+            abs(indices.orbital_idx_to_j_map[annihilation_orb_idx_0] - indices.orbital_idx_to_j_map[annihilation_orb_idx_1]),
+        )
+        j_max = min(
+            indices.orbital_idx_to_j_map[creation_orb_idx_0] + indices.orbital_idx_to_j_map[creation_orb_idx_1],
+            indices.orbital_idx_to_j_map[annihilation_orb_idx_0] + indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
+        )
 
-                        Step length of 2 because all angular momentum
-                        values are multiplied by 2 to avoid fractions.
-                        + 2 so that the end point is included.
-                        """
-                        try:
-                            tbme = interaction.tbme[(
-                                creation_orb_idx_0,
-                                creation_orb_idx_1,
-                                annihilation_orb_idx_0,
-                                annihilation_orb_idx_1,
-                                j_coupled
-                            )]
-                        except KeyError:
-                            """
-                            If the current interaction file is not
-                            defining any two-body matrix elements
-                            for this choice of orbitals and coupled
-                            j then the result is 0.
-                            """
-                            continue
+        for j_coupled in range(j_min, j_max + 2, 2):
+            """
+            j_coupled is the total angular momentum to which 
+            (creation_orb_idx_0, creation_orb_idx_1) and
+            (annihilation_orb_idx_0, annihilation_orb_idx_1)
+            couple. Follows the standard angular momentum
+            coupling rules:
 
-                        for m_coupled in range(-j_coupled, j_coupled + 2, 2):
-                            """
-                            m_coupled is simply the z component of the
-                            coupled total angular momentum, j_coupled.
-                            """
-                            timing_twobody_annihilation_term = time.perf_counter()
-                            annihilation_results = twobody_annihilation_term(
-                                interaction = interaction,
-                                indices = indices,
-                                right_state = right_state,
-                                annihilation_orb_idx_0 = annihilation_orb_idx_0,
-                                annihilation_orb_idx_1 = annihilation_orb_idx_1,
-                                j_coupled = j_coupled,
-                                m_coupled = m_coupled,
-                            )
-                            timing_twobody_annihilation_term = time.perf_counter() - timing_twobody_annihilation_term
-                            timings.twobody_annihilation_term.time += timing_twobody_annihilation_term
-                            
-                            timing_twobody_creation_term = time.perf_counter()
-                            twobody_res += creation_norm*tbme*twobody_creation_term(
-                                indices = indices,
-                                annihilation_results = annihilation_results,
-                                left_state_copy = left_state_copy,
-                                creation_orb_idx_0 = creation_orb_idx_0,
-                                creation_orb_idx_1 = creation_orb_idx_1,
-                                j_coupled = j_coupled,
-                                m_coupled = m_coupled,
-                            )
-                            timing_twobody_creation_term = time.perf_counter() - timing_twobody_creation_term
-                            timings.twobody_creation_term.time += timing_twobody_creation_term
+                j = | j1 - j2 |, | j1 - j2 | + 1, ..., j1 + j2
+
+            but we have to respect the allowed range for
+            both pairs of total angular momentum values so
+            that j_coupled is contained in both ranges.
+
+            Step length of 2 because all angular momentum
+            values are multiplied by 2 to avoid fractions.
+            + 2 so that the end point is included.
+            """
+            try:
+                tbme = interaction.tbme[(
+                    creation_orb_idx_0,
+                    creation_orb_idx_1,
+                    annihilation_orb_idx_0,
+                    annihilation_orb_idx_1,
+                    j_coupled
+                )]
+            except KeyError:
+                """
+                If the current interaction file is not
+                defining any two-body matrix elements
+                for this choice of orbitals and coupled
+                j then the result is 0.
+                """
+                continue
+
+            for m_coupled in range(-j_coupled, j_coupled + 2, 2):
+                """
+                m_coupled is simply the z component of the
+                coupled total angular momentum, j_coupled.
+                """
+                timing_twobody_annihilation_term = time.perf_counter()
+                annihilation_results = twobody_annihilation_term(
+                    interaction = interaction,
+                    indices = indices,
+                    right_state = right_state,
+                    annihilation_orb_idx_0 = annihilation_orb_idx_0,
+                    annihilation_orb_idx_1 = annihilation_orb_idx_1,
+                    j_coupled = j_coupled,
+                    m_coupled = m_coupled,
+                )
+                timing_twobody_annihilation_term = time.perf_counter() - timing_twobody_annihilation_term
+                timings.twobody_annihilation_term.time += timing_twobody_annihilation_term
+                
+                timing_twobody_creation_term = time.perf_counter()
+                twobody_res += annihilation_norm*creation_norm*tbme*twobody_creation_term(
+                    indices = indices,
+                    annihilation_results = annihilation_results,
+                    left_state_copy = left_state_copy,
+                    creation_orb_idx_0 = creation_orb_idx_0,
+                    creation_orb_idx_1 = creation_orb_idx_1,
+                    j_coupled = j_coupled,
+                    m_coupled = m_coupled,
+                )
+                timing_twobody_creation_term = time.perf_counter() - timing_twobody_creation_term
+                timings.twobody_creation_term.time += timing_twobody_creation_term
 
     timing = time.perf_counter() - timing
     timings.calculate_twobody_matrix_element.time += timing
@@ -355,6 +369,7 @@ def create_hamiltonian(
     
     print(basis_states)
     print(f"{m_dim = }")
+    # print(f"{indices.creation_orb_indices_0}")
     
     H = np.zeros((m_dim, m_dim), dtype=np.float64)
     

@@ -76,11 +76,16 @@ class Indices:
             index 0 and composite m substate indices 0, 1, 2, 3.
 
     """
-    orbital_idx_to_j_map: list[int] = field(default_factory=list)
-    composite_m_idx_to_m_map: list[int] = field(default_factory=list)
-    orbital_idx_to_composite_m_idx_map: list[tuple[int, ...]] = field(default_factory=list)
-    composite_m_indices_0: dict[tuple[int, int], list[int]] = field(default_factory=dict)
-    composite_m_indices_1: dict[tuple[int, int], list[int]] = field(default_factory=dict)
+    orbital_idx_to_j_map: list[int]# = field(default_factory=list)
+    composite_m_idx_to_m_map: tuple[int]# = field(default_factory=list)
+    orbital_idx_to_composite_m_idx_map: list[tuple[int, ...]]# = field(default_factory=list)
+    # composite_m_indices_0: dict[tuple[int, int], list[int]]# = field(default_factory=dict)
+    # composite_m_indices_1: dict[tuple[int, int], list[int]]# = field(default_factory=dict)
+
+    creation_orb_indices_0: list[int]# = field(default_factory=list)
+    creation_orb_indices_1: list[int]# = field(default_factory=list)
+    annihilation_orb_indices_0: list[int]# = field(default_factory=list)
+    annihilation_orb_indices_1: list[int]# = field(default_factory=list)
 
 
 @dataclass(slots=True)
