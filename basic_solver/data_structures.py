@@ -91,6 +91,9 @@ class Indices:
     m_coupled: list[int]
     tbme: list[float]
 
+    annihilation_comp_m_indices_0: list[int]
+    annihilation_comp_m_indices_1: list[int]
+
 
 @dataclass(slots=True)
 class Interaction:
@@ -117,19 +120,19 @@ class Timing:
         )
         self.calculate_twobody_matrix_element = TimingGroupID(
             time = 0.0,
-            group_ids = [0, 0],
-            attr_ids = [4, 0],
+            group_ids = [0],#, 0],
+            attr_ids = [4],#, 0],
         )
-        self.twobody_annihilation_term = TimingGroupID(
-            time = 0.0,
-            group_ids = [0, 0],
-            attr_ids = [4, 1],
-        )
-        self.twobody_creation_term = TimingGroupID(
-            time = 0.0,
-            group_ids = [0, 0],
-            attr_ids = [4, 2],
-        )
+        # self.twobody_annihilation_term = TimingGroupID(
+        #     time = 0.0,
+        #     group_ids = [0, 0],
+        #     attr_ids = [4, 1],
+        # )
+        # self.twobody_creation_term = TimingGroupID(
+        #     time = 0.0,
+        #     group_ids = [0, 0],
+        #     attr_ids = [4, 2],
+        # )
         self.generate_indices = TimingGroupID(
             time = 0.0,
             group_ids = [0],
