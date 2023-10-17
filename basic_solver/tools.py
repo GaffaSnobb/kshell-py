@@ -91,17 +91,72 @@ def generate_indices(interaction: Interaction) -> Indices:
     creation_orb_indices_1: list[int] = []
     annihilation_orb_indices_0: list[int] = []
     annihilation_orb_indices_1: list[int] = []
+    j_coupled_list: list[int] = []
+    m_coupled_list: list[int] = []
+    tbme_list: list[float] = []
 
     for creation_orb_idx_0 in range(interaction.model_space.n_orbitals):
         for creation_orb_idx_1 in range(creation_orb_idx_0, interaction.model_space.n_orbitals):
             
             for annihilation_orb_idx_0 in range(interaction.model_space.n_orbitals):
                 for annihilation_orb_idx_1 in range(annihilation_orb_idx_0, interaction.model_space.n_orbitals):
-                    
-                    creation_orb_indices_0.append(creation_orb_idx_0)
-                    creation_orb_indices_1.append(creation_orb_idx_1)
-                    annihilation_orb_indices_0.append(annihilation_orb_idx_0)
-                    annihilation_orb_indices_1.append(annihilation_orb_idx_1)
+
+                    j_min = max(
+                        abs(orbital_idx_to_j_map[creation_orb_idx_0] - orbital_idx_to_j_map[creation_orb_idx_1]),
+                        abs(orbital_idx_to_j_map[annihilation_orb_idx_0] - orbital_idx_to_j_map[annihilation_orb_idx_1]),
+                    )
+                    j_max = min(
+                        orbital_idx_to_j_map[creation_orb_idx_0] + orbital_idx_to_j_map[creation_orb_idx_1],
+                        orbital_idx_to_j_map[annihilation_orb_idx_0] + orbital_idx_to_j_map[annihilation_orb_idx_1],
+                    )
+
+                    for j_coupled in range(j_min, j_max + 2, 2):
+                        """
+                        j_coupled is the total angular momentum to which 
+                        (creation_orb_idx_0, creation_orb_idx_1) and
+                        (annihilation_orb_idx_0, annihilation_orb_idx_1)
+                        couple. Follows the standard angular momentum
+                        coupling rules:
+
+                            j = | j1 - j2 |, | j1 - j2 | + 1, ..., j1 + j2
+
+                        but we have to respect the allowed range for
+                        both pairs of total angular momentum values so
+                        that j_coupled is contained in both ranges.
+
+                        Step length of 2 because all angular momentum
+                        values are multiplied by 2 to avoid fractions.
+                        + 2 so that the end point is included.
+                        """
+                        try:
+                            tbme = interaction.tbme[(
+                                creation_orb_idx_0,
+                                creation_orb_idx_1,
+                                annihilation_orb_idx_0,
+                                annihilation_orb_idx_1,
+                                j_coupled
+                            )]
+                        except KeyError:
+                            """
+                            If the current interaction file is not
+                            defining any two-body matrix elements
+                            for this choice of orbitals and coupled
+                            j then the result is 0.
+                            """
+                            continue
+
+                        for m_coupled in range(-j_coupled, j_coupled + 2, 2):
+                            """
+                            m_coupled is simply the z component of the
+                            coupled total angular momentum, j_coupled.
+                            """
+                            creation_orb_indices_0.append(creation_orb_idx_0)
+                            creation_orb_indices_1.append(creation_orb_idx_1)
+                            annihilation_orb_indices_0.append(annihilation_orb_idx_0)
+                            annihilation_orb_indices_1.append(annihilation_orb_idx_1)
+                            j_coupled_list.append(j_coupled)
+                            m_coupled_list.append(m_coupled)
+                            tbme_list.append(tbme)
 
     indices: Indices = Indices(
         composite_m_idx_to_m_map = interaction.model_space.all_jz_values,
@@ -111,6 +166,9 @@ def generate_indices(interaction: Interaction) -> Indices:
         creation_orb_indices_1 = creation_orb_indices_1,
         annihilation_orb_indices_0 = annihilation_orb_indices_0,
         annihilation_orb_indices_1 = annihilation_orb_indices_1,
+        j_coupled = j_coupled_list,
+        m_coupled = m_coupled_list,
+        tbme = tbme_list
     )
     timing = time.perf_counter() - timing
     timings.generate_indices.time = timing

@@ -87,6 +87,10 @@ class Indices:
     annihilation_orb_indices_0: list[int]# = field(default_factory=list)
     annihilation_orb_indices_1: list[int]# = field(default_factory=list)
 
+    j_coupled: list[int]
+    m_coupled: list[int]
+    tbme: list[float]
+
 
 @dataclass(slots=True)
 class Interaction:

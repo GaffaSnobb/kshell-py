@@ -225,7 +225,6 @@ def calculate_twobody_matrix_element(
     
     timing = time.perf_counter()
     twobody_res: float = 0.0
-    n_orbitals = interaction.model_space.n_orbitals # Just to make the name shorter.
 
     for i in range(len(indices.creation_orb_indices_0)):
         """
@@ -245,84 +244,161 @@ def calculate_twobody_matrix_element(
         creation_orb_idx_1 = indices.creation_orb_indices_1[i]
         annihilation_orb_idx_0 = indices.annihilation_orb_indices_0[i]
         annihilation_orb_idx_1 = indices.annihilation_orb_indices_1[i]
+        j_coupled = indices.j_coupled[i]
+        m_coupled = indices.m_coupled[i]
+        tbme = indices.tbme[i]
 
         creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))
         annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))
 
-        j_min = max(
-            abs(indices.orbital_idx_to_j_map[creation_orb_idx_0] - indices.orbital_idx_to_j_map[creation_orb_idx_1]),
-            abs(indices.orbital_idx_to_j_map[annihilation_orb_idx_0] - indices.orbital_idx_to_j_map[annihilation_orb_idx_1]),
-        )
-        j_max = min(
-            indices.orbital_idx_to_j_map[creation_orb_idx_0] + indices.orbital_idx_to_j_map[creation_orb_idx_1],
-            indices.orbital_idx_to_j_map[annihilation_orb_idx_0] + indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
-        )
+        # j_min = max(
+        #     abs(indices.orbital_idx_to_j_map[creation_orb_idx_0] - indices.orbital_idx_to_j_map[creation_orb_idx_1]),
+        #     abs(indices.orbital_idx_to_j_map[annihilation_orb_idx_0] - indices.orbital_idx_to_j_map[annihilation_orb_idx_1]),
+        # )
+        # j_max = min(
+        #     indices.orbital_idx_to_j_map[creation_orb_idx_0] + indices.orbital_idx_to_j_map[creation_orb_idx_1],
+        #     indices.orbital_idx_to_j_map[annihilation_orb_idx_0] + indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
+        # )
 
-        for j_coupled in range(j_min, j_max + 2, 2):
-            """
-            j_coupled is the total angular momentum to which 
-            (creation_orb_idx_0, creation_orb_idx_1) and
-            (annihilation_orb_idx_0, annihilation_orb_idx_1)
-            couple. Follows the standard angular momentum
-            coupling rules:
+        # for j_coupled in range(j_min, j_max + 2, 2):
+        #     """
+        #     j_coupled is the total angular momentum to which 
+        #     (creation_orb_idx_0, creation_orb_idx_1) and
+        #     (annihilation_orb_idx_0, annihilation_orb_idx_1)
+        #     couple. Follows the standard angular momentum
+        #     coupling rules:
 
-                j = | j1 - j2 |, | j1 - j2 | + 1, ..., j1 + j2
+        #         j = | j1 - j2 |, | j1 - j2 | + 1, ..., j1 + j2
 
-            but we have to respect the allowed range for
-            both pairs of total angular momentum values so
-            that j_coupled is contained in both ranges.
+        #     but we have to respect the allowed range for
+        #     both pairs of total angular momentum values so
+        #     that j_coupled is contained in both ranges.
 
-            Step length of 2 because all angular momentum
-            values are multiplied by 2 to avoid fractions.
-            + 2 so that the end point is included.
-            """
-            try:
-                tbme = interaction.tbme[(
-                    creation_orb_idx_0,
-                    creation_orb_idx_1,
-                    annihilation_orb_idx_0,
-                    annihilation_orb_idx_1,
-                    j_coupled
+        #     Step length of 2 because all angular momentum
+        #     values are multiplied by 2 to avoid fractions.
+        #     + 2 so that the end point is included.
+        #     """
+        #     try:
+        #         tbme = interaction.tbme[(
+        #             creation_orb_idx_0,
+        #             creation_orb_idx_1,
+        #             annihilation_orb_idx_0,
+        #             annihilation_orb_idx_1,
+        #             j_coupled
+        #         )]
+        #     except KeyError:
+        #         """
+        #         If the current interaction file is not
+        #         defining any two-body matrix elements
+        #         for this choice of orbitals and coupled
+        #         j then the result is 0.
+        #         """
+        #         continue
+
+        #     for m_coupled in range(-j_coupled, j_coupled + 2, 2):
+        #         """
+        #         m_coupled is simply the z component of the
+        #         coupled total angular momentum, j_coupled.
+        #         """
+        timing_twobody_annihilation_term = time.perf_counter()
+        # annihilation_results = twobody_annihilation_term(
+        #     interaction = interaction,
+        #     indices = indices,
+        #     right_state = right_state,
+        #     annihilation_orb_idx_0 = annihilation_orb_idx_0,
+        #     annihilation_orb_idx_1 = annihilation_orb_idx_1,
+        #     j_coupled = j_coupled,
+        #     m_coupled = m_coupled,
+        # )
+        # annihilation_results: list[tuple[float, list[int]]] = []
+        for annihilation_comp_m_idx_0 in indices.orbital_idx_to_composite_m_idx_map[annihilation_orb_idx_0]:
+            for annihilation_comp_m_idx_1 in indices.orbital_idx_to_composite_m_idx_map[annihilation_orb_idx_1]:
+
+                new_right_state = list(right_state)
+
+                if annihilation_comp_m_idx_0 not in new_right_state: continue
+
+                annihilation_idx = new_right_state.index(annihilation_comp_m_idx_0)
+                new_right_state.pop(annihilation_idx)
+                annihilation_sign = (-1)**annihilation_idx
+
+                if annihilation_comp_m_idx_1 not in new_right_state: continue
+
+                annihilation_idx = new_right_state.index(annihilation_comp_m_idx_1)
+                new_right_state.pop(annihilation_idx)
+                annihilation_sign *= (-1)**annihilation_idx
+
+                assert len(new_right_state) == (interaction.model_space.n_valence_nucleons - 2)    # Sanity check. Extremely small impact on program run time.
+
+                cg_annihilation = clebsch_gordan[(
+                    indices.orbital_idx_to_j_map[annihilation_orb_idx_0],
+                    indices.composite_m_idx_to_m_map[annihilation_comp_m_idx_0],
+                    indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
+                    indices.composite_m_idx_to_m_map[annihilation_comp_m_idx_1],
+                    j_coupled,
+                    m_coupled,
                 )]
-            except KeyError:
-                """
-                If the current interaction file is not
-                defining any two-body matrix elements
-                for this choice of orbitals and coupled
-                j then the result is 0.
-                """
-                continue
 
-            for m_coupled in range(-j_coupled, j_coupled + 2, 2):
-                """
-                m_coupled is simply the z component of the
-                coupled total angular momentum, j_coupled.
-                """
-                timing_twobody_annihilation_term = time.perf_counter()
-                annihilation_results = twobody_annihilation_term(
-                    interaction = interaction,
-                    indices = indices,
-                    right_state = right_state,
-                    annihilation_orb_idx_0 = annihilation_orb_idx_0,
-                    annihilation_orb_idx_1 = annihilation_orb_idx_1,
-                    j_coupled = j_coupled,
-                    m_coupled = m_coupled,
-                )
-                timing_twobody_annihilation_term = time.perf_counter() - timing_twobody_annihilation_term
-                timings.twobody_annihilation_term.time += timing_twobody_annihilation_term
-                
-                timing_twobody_creation_term = time.perf_counter()
-                twobody_res += annihilation_norm*creation_norm*tbme*twobody_creation_term(
-                    indices = indices,
-                    annihilation_results = annihilation_results,
-                    left_state_copy = left_state_copy,
-                    creation_orb_idx_0 = creation_orb_idx_0,
-                    creation_orb_idx_1 = creation_orb_idx_1,
-                    j_coupled = j_coupled,
-                    m_coupled = m_coupled,
-                )
-                timing_twobody_creation_term = time.perf_counter() - timing_twobody_creation_term
-                timings.twobody_creation_term.time += timing_twobody_creation_term
+                if cg_annihilation == 0: continue
+
+                # annihilation_results.append((annihilation_sign*annihilation_norm*cg_annihilation, new_right_state))
+                # annihilation_results.append((annihilation_sign*cg_annihilation, new_right_state))
+        
+        # timing_twobody_annihilation_term = time.perf_counter() - timing_twobody_annihilation_term
+        # timings.twobody_annihilation_term.time += timing_twobody_annihilation_term
+        
+        # timing_twobody_creation_term = time.perf_counter()
+        # twobody_res += annihilation_norm*creation_norm*tbme*twobody_creation_term(
+        #     indices = indices,
+        #     annihilation_results = annihilation_results,
+        #     left_state_copy = left_state_copy,
+        #     creation_orb_idx_0 = creation_orb_idx_0,
+        #     creation_orb_idx_1 = creation_orb_idx_1,
+        #     j_coupled = j_coupled,
+        #     m_coupled = m_coupled,
+        # )
+
+                creation_res: float = 0.0
+
+                for creation_comp_m_idx_0 in indices.orbital_idx_to_composite_m_idx_map[creation_orb_idx_0]:
+                    for creation_comp_m_idx_1 in indices.orbital_idx_to_composite_m_idx_map[creation_orb_idx_1]:
+
+                        cg_creation = clebsch_gordan[(
+                            indices.orbital_idx_to_j_map[creation_orb_idx_0],
+                            indices.composite_m_idx_to_m_map[creation_comp_m_idx_0],
+                            indices.orbital_idx_to_j_map[creation_orb_idx_1],
+                            indices.composite_m_idx_to_m_map[creation_comp_m_idx_1],
+                            j_coupled,
+                            m_coupled,
+                        )]
+
+                        if cg_creation == 0: continue
+                        
+                        # for annihilation_coeff, right_state_annihilation in annihilation_results:
+
+                        #     new_right_state_annihilation = right_state_annihilation.copy()
+                        new_right_state_copy = new_right_state.copy()
+
+                        if creation_comp_m_idx_1 in new_right_state_copy: continue
+                        created_substate_idx = bisect_right(a=new_right_state_copy, x=creation_comp_m_idx_1)
+                        new_right_state_copy.insert(created_substate_idx, creation_comp_m_idx_1)
+                        creation_sign = (-1)**created_substate_idx
+
+                        if creation_comp_m_idx_0 in new_right_state_copy: continue
+                        created_substate_idx = bisect_right(a=new_right_state_copy, x=creation_comp_m_idx_0)
+                        new_right_state_copy.insert(created_substate_idx, creation_comp_m_idx_0)
+                        creation_sign *= (-1)**created_substate_idx
+
+                        if left_state_copy != new_right_state_copy:
+                            continue
+                            
+                        # creation_res += creation_sign*cg_creation*annihilation_coeff
+                        creation_res += creation_sign*cg_creation*annihilation_sign*cg_annihilation
+
+                twobody_res += annihilation_norm*creation_norm*tbme*creation_res
+
+        # timing_twobody_creation_term = time.perf_counter() - timing_twobody_creation_term
+        # timings.twobody_creation_term.time += timing_twobody_creation_term
 
     timing = time.perf_counter() - timing
     timings.calculate_twobody_matrix_element.time += timing
@@ -369,6 +445,7 @@ def create_hamiltonian(
     
     print(basis_states)
     print(f"{m_dim = }")
+    print(f"{len(indices.creation_orb_indices_0) = }")
     # print(f"{indices.creation_orb_indices_0}")
     
     H = np.zeros((m_dim, m_dim), dtype=np.float64)
