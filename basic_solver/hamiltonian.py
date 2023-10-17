@@ -5,26 +5,11 @@ import numpy as np
 from tqdm import tqdm
 from kshell_utilities.data_structures import Interaction
 from basis import calculate_m_basis_states
-from parameters import clebsch_gordan, clebsch_gordan_array
+from parameters import (
+    clebsch_gordan, clebsch_gordan_array, normalisation_factors
+)
 from tools import generate_indices
 from data_structures import Indices, timings
-
-# newmap = {
-#     0: [0, 1, 2, 3],
-#     1: [4, 5, 6, 7, 8, 9],
-#     2: [10, 11],
-#     3: [12, 13, 14, 15],
-#     4: [16, 17, 18, 19, 20, 21],
-#     5: [22, 23],
-# }
-# orbital_idx_to_comp_m_idx_map = [
-#     (0, 1, 2, 3),
-#     (4, 5, 6, 7, 8, 9),
-#     (10, 11),
-#     (12, 13, 14, 15),
-#     (16, 17, 18, 19, 20, 21),
-#     (22, 23),
-# ]
 
 def calculate_onebody_matrix_element(
     interaction: Interaction,
@@ -44,8 +29,8 @@ def calculate_onebody_matrix_element(
         """
         annihilation_orb_idx = creation_orb_idx
     
-        for creation_comp_m_idx in indices.orbital_idx_to_comp_m_idx_map[creation_orb_idx]:
-            for annihilation_comp_m_idx in indices.orbital_idx_to_comp_m_idx_map[annihilation_orb_idx]:
+        for creation_comp_m_idx in indices.orbital_idx_to_composite_m_idx_map[creation_orb_idx]:
+            for annihilation_comp_m_idx in indices.orbital_idx_to_composite_m_idx_map[annihilation_orb_idx]:
                 """
                 Index scheme for the sd model space:
 
@@ -73,7 +58,7 @@ def calculate_onebody_matrix_element(
                       -  O  -  O  -  O  -  O  -       proton d3/2: 0
                        -3/2  -1/2   1/2   3/2
 
-                orbital_idx_to_comp_m_idx_map translates the orbital
+                orbital_idx_to_composite_m_idx_map translates the orbital
                 indices to the composite m indices of the magnetic
                 substates. For example, proton d3/2 has orbital index 0
                 and composite m substate indices 0, 1, 2, 3.
@@ -131,6 +116,8 @@ def twobody_annihilation_term(
     right_state: tuple[int, ...],
     annihilation_orb_idx_0: int,
     annihilation_orb_idx_1: int,
+    # composite_m_indices_0,
+    # composite_m_indices_1,
     j_coupled: int,
     m_coupled: int,
 ) -> list[tuple[float, list[int]]]:
@@ -138,12 +125,16 @@ def twobody_annihilation_term(
     All calculations related to the annihilation term in the two-body
     part of the Hamiltonian.
     """
-    annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))
+    annihilation_norm = 1/sqrt(1 + (annihilation_orb_idx_0 == annihilation_orb_idx_1))  # Changing to lookup table had almost no impact.
     
     annihilation_results: list[tuple[float, list[int]]] = []
 
-    for annihilation_comp_m_idx_0 in indices.orbital_idx_to_comp_m_idx_map[annihilation_orb_idx_0]:
-        for annihilation_comp_m_idx_1 in indices.orbital_idx_to_comp_m_idx_map[annihilation_orb_idx_1]:
+    for annihilation_comp_m_idx_0 in indices.orbital_idx_to_composite_m_idx_map[annihilation_orb_idx_0]:
+        for annihilation_comp_m_idx_1 in indices.orbital_idx_to_composite_m_idx_map[annihilation_orb_idx_1]:
+
+    # for i in range(len(indices.composite_m_indices_0)):
+    #     annihilation_comp_m_idx_0 = indices.composite_m_indices_0[i]
+    #     annihilation_comp_m_idx_1 = indices.composite_m_indices_1[i]
 
             new_right_state = list(right_state)
 
@@ -163,9 +154,9 @@ def twobody_annihilation_term(
 
             cg_annihilation = clebsch_gordan[(
                 indices.orbital_idx_to_j_map[annihilation_orb_idx_0],
-                indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_0],
+                indices.composite_m_idx_to_m_map[annihilation_comp_m_idx_0],
                 indices.orbital_idx_to_j_map[annihilation_orb_idx_1],
-                indices.m_composite_idx_to_m_map[annihilation_comp_m_idx_1],
+                indices.composite_m_idx_to_m_map[annihilation_comp_m_idx_1],
                 j_coupled,
                 m_coupled,
             )]
@@ -191,20 +182,14 @@ def twobody_creation_term(
     """
     creation_res: float = 0.0
 
-    # for creation_m_idx_0 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_0]:
-    #     creation_comp_m_idx_0 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_0, creation_m_idx_0)]
-
-    for creation_comp_m_idx_0 in indices.orbital_idx_to_comp_m_idx_map[creation_orb_idx_0]:
-        for creation_comp_m_idx_1 in indices.orbital_idx_to_comp_m_idx_map[creation_orb_idx_1]:
-
-        # for creation_m_idx_1 in indices.orbital_idx_to_m_idx_map[creation_orb_idx_1]:
-        #     creation_comp_m_idx_1 = indices.orbital_m_pair_to_composite_m_idx_map[(creation_orb_idx_1, creation_m_idx_1)]
+    for creation_comp_m_idx_0 in indices.orbital_idx_to_composite_m_idx_map[creation_orb_idx_0]:
+        for creation_comp_m_idx_1 in indices.orbital_idx_to_composite_m_idx_map[creation_orb_idx_1]:
 
             cg_creation = clebsch_gordan[(
                 indices.orbital_idx_to_j_map[creation_orb_idx_0],
-                indices.m_composite_idx_to_m_map[creation_comp_m_idx_0],
+                indices.composite_m_idx_to_m_map[creation_comp_m_idx_0],
                 indices.orbital_idx_to_j_map[creation_orb_idx_1],
-                indices.m_composite_idx_to_m_map[creation_comp_m_idx_1],
+                indices.composite_m_idx_to_m_map[creation_comp_m_idx_1],
                 j_coupled,
                 m_coupled,
             )]
@@ -245,7 +230,7 @@ def calculate_twobody_matrix_element(
     
     for creation_orb_idx_0 in range(n_orbitals):
         for creation_orb_idx_1 in range(creation_orb_idx_0, n_orbitals):
-            creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))
+            creation_norm = 1/sqrt(1 + (creation_orb_idx_0 == creation_orb_idx_1))  # Changing to lookup table had almost no impact.
             
             for annihilation_orb_idx_0 in range(n_orbitals):
                 for annihilation_orb_idx_1 in range(annihilation_orb_idx_0, n_orbitals):

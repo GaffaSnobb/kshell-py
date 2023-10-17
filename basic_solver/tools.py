@@ -72,24 +72,19 @@ def generate_indices(interaction: Interaction) -> Indices:
     """
     timing = time.perf_counter()
     indices: Indices = Indices()
-    indices.m_composite_idx_to_m_map = interaction.model_space.all_jz_values
-    indices.orbital_idx_to_comp_m_idx_map: list[tuple[int, ...]] = []
+    indices.composite_m_idx_to_m_map = interaction.model_space.all_jz_values
+    indices.orbital_idx_to_composite_m_idx_map: list[tuple[int, ...]] = []
 
     previous_degeneracy = 0
-    for orb_idx, orbital in enumerate(interaction.model_space.orbitals):
-        # indices.orbital_idx_to_m_idx_map.append(tuple(range(orbital.degeneracy)))
+    for orbital in interaction.model_space.orbitals:
         
         indices.orbital_idx_to_j_map.append(orbital.j)
-        indices.orbital_idx_to_comp_m_idx_map.append(tuple(range(
+        indices.orbital_idx_to_composite_m_idx_map.append(tuple(range(
             previous_degeneracy,
             previous_degeneracy + orbital.degeneracy
         )))
 
         previous_degeneracy = orbital.degeneracy + previous_degeneracy
-
-        # for m_idx in range(orbital.degeneracy):
-            # indices.orbital_m_pair_to_composite_m_idx_map[(orb_idx, m_idx)] = m_composite_idx_counter
-            # m_composite_idx_counter += 1
 
     timing = time.perf_counter() - timing
     timings.generate_indices.time = timing
